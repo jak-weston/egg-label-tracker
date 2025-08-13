@@ -43,8 +43,18 @@ export default function Home() {
   };
 
   useEffect(() => {
+    console.log('Component mounted, calling fetchData');
     fetchData();
   }, []);
+
+  // Debug state changes
+  useEffect(() => {
+    console.log('Loading state changed:', loading);
+  }, [loading]);
+
+  useEffect(() => {
+    console.log('Entries state changed:', entries.length, entries);
+  }, [entries]);
 
   const fetchData = async () => {
     try {
@@ -55,15 +65,21 @@ export default function Home() {
         const response = await fetch('/api/data');
         if (response.ok) {
           const data = await response.json();
+          console.log('API response:', data);
+          console.log('Setting entries:', data.entries);
           setEntries(data.entries || []);
+          console.log('Setting loading to false');
           setLoading(false);
           return;
+        } else {
+          console.log('API response not ok:', response.status);
         }
       } catch (apiError) {
-        console.log('API not available, using local storage');
+        console.log('API not available, using local storage:', apiError);
       }
       
       // Fallback to local storage for local development
+      console.log('Falling back to local storage');
       const localEntries = readEntriesFromStorage();
       setEntries(localEntries);
       setLoading(false);
