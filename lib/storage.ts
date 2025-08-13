@@ -11,10 +11,23 @@ const hasBlobAccess = () => {
   try {
     // Check if we're in a Node.js environment and have the token
     if (typeof process !== 'undefined' && process.env && process.env.BLOB_READ_WRITE_TOKEN) {
+      console.log('Blob access check: Token found, length:', process.env.BLOB_READ_WRITE_TOKEN.length);
       return true;
     }
+    
+    // Additional check for Vercel environment
+    if (typeof process !== 'undefined' && process.env && process.env.VERCEL) {
+      console.log('Blob access check: Running on Vercel, checking for token...');
+      if (process.env.BLOB_READ_WRITE_TOKEN) {
+        console.log('Blob access check: Token found on Vercel, length:', process.env.BLOB_READ_WRITE_TOKEN.length);
+        return true;
+      }
+    }
+    
+    console.log('Blob access check: No token found');
     return false;
-  } catch {
+  } catch (error) {
+    console.log('Blob access check: Error checking access:', error);
     return false;
   }
 };
@@ -71,8 +84,22 @@ export async function readEntries(): Promise<LabelEntry[]> {
         return entries;
       } catch (blobError) {
         console.error('Vercel Blob error:', blobError);
-        // If Blob fails on server side, return empty array
-        // This prevents the app from crashing
+        
+        // Fallback: Try to fetch directly from the known public URL
+        try {
+          console.log('Trying direct URL fallback...');
+          const directResponse = await fetch('https://ftfkrzqiv0pq9s2d.public.blob.vercel-storage.com/labels/entries.json');
+          if (directResponse.ok) {
+            const text = await directResponse.text();
+            const fallbackEntries = JSON.parse(text);
+            console.log('Direct URL fallback successful, found entries:', fallbackEntries.length);
+            return Array.isArray(fallbackEntries) ? fallbackEntries : [];
+          }
+        } catch (fallbackError) {
+          console.error('Direct URL fallback also failed:', fallbackError);
+        }
+        
+        // If all else fails, return empty array
         return [];
       }
     }
