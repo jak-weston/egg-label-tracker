@@ -70,6 +70,8 @@ ADD_SECRET=your_secret_here
 
 # Base URL for the application
 NEXT_PUBLIC_BASE_URL=https://your-domain.vercel.app
+
+**Important**: For production deployment on Vercel, make sure to set `NEXT_PUBLIC_BASE_URL` to your full production URL including the protocol (e.g., `https://egg-label-tracker.vercel.app`). If you only provide the domain without the protocol, the app will automatically add `https://`.
 ```
 
 **Note:** For local development, if `BLOB_READ_WRITE_TOKEN` is not set, the app will automatically fall back to using localStorage.
@@ -161,6 +163,28 @@ egg-label-tracker/
 - **qrcode**: QR code generation
 - **zod**: Schema validation
 - **uuid**: Unique ID generation
+
+## Troubleshooting
+
+### HTTP 500 Error with "URL is malformed"
+If you encounter this error when using the `/api/add` endpoint, it's likely due to the `NEXT_PUBLIC_BASE_URL` environment variable not being set correctly in production.
+
+**Solution:**
+1. Go to your Vercel dashboard
+2. Navigate to your project settings
+3. Set the environment variable `NEXT_PUBLIC_BASE_URL` to your full production URL:
+   ```
+   NEXT_PUBLIC_BASE_URL=https://egg-label-tracker.vercel.app
+   ```
+4. Redeploy your application
+
+### Testing the API Endpoint
+To test if your API is working correctly, try this URL format:
+```
+https://your-app.vercel.app/api/add?secret=YOUR_SECRET&egg_id=TEST-001&name=Test%20Egg&cage=Test%20Cage
+```
+
+**Note:** Replace `YOUR_SECRET` with the value of your `ADD_SECRET` environment variable.
 
 ## License
 

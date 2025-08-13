@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { AddEntrySchema } from '../../../lib/types';
 import { appendEntry, ensureEntriesFile } from '../../../lib/storage';
 import { v4 as uuidv4 } from 'uuid';
+import { getFormattedBaseUrl } from '../../../lib/utils';
 
 export const runtime = 'nodejs';
 
@@ -14,16 +15,18 @@ export async function GET(request: NextRequest) {
   const link = searchParams.get('link');
 
   if (!secret || !egg_id || !name || !cage) {
+    const redirectUrl = getFormattedBaseUrl(process.env.NEXT_PUBLIC_BASE_URL);
     return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/?error=missing_params`,
+      `${redirectUrl}/?error=missing_params`,
       302
     );
   }
 
   // Validate secret
   if (secret !== process.env.ADD_SECRET) {
+    const redirectUrl = getFormattedBaseUrl(process.env.NEXT_PUBLIC_BASE_URL);
     return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/?error=unauthorized`,
+      `${redirectUrl}/?error=unauthorized`,
       302
     );
   }
@@ -46,14 +49,16 @@ export async function GET(request: NextRequest) {
     await appendEntry(entry);
 
     // Redirect with success
+    const redirectUrl = getFormattedBaseUrl(process.env.NEXT_PUBLIC_BASE_URL);
     return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/?added=${egg_id}`,
+      `${redirectUrl}/?added=${egg_id}`,
       302
     );
   } catch (error) {
     console.error('Error adding entry:', error);
+    const redirectUrl = getFormattedBaseUrl(process.env.NEXT_PUBLIC_BASE_URL);
     return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/?error=server_error`,
+      `${redirectUrl}/?error=server_error`,
       302
     );
   }
