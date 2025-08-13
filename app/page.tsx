@@ -10,6 +10,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'table' | 'sheet'>('table');
+  const [forceUpdate, setForceUpdate] = useState(0);
 
   const handleDelete = async (entryId: string) => {
     if (!confirm('Are you sure you want to delete this entry?')) {
@@ -70,6 +71,8 @@ export default function Home() {
           setEntries(data.entries || []);
           console.log('Setting loading to false');
           setLoading(false);
+          // Force a re-render
+          setForceUpdate(prev => prev + 1);
           return;
         } else {
           console.log('API response not ok:', response.status);
@@ -257,6 +260,19 @@ export default function Home() {
         <h1>Egg Label Tracker</h1>
       </div>
       <div className="content">
+        {/* Debug Info */}
+        <div style={{ background: '#f0f0f0', padding: '10px', margin: '10px 0', borderRadius: '4px' }}>
+          <strong>Debug Info:</strong> Loading: {loading.toString()}, Entries: {entries.length}, Active Tab: {activeTab}, Force Update: {forceUpdate}
+          <button 
+            onClick={() => {
+              console.log('Manual refresh clicked');
+              setForceUpdate(prev => prev + 1);
+            }}
+            style={{ marginLeft: '10px', padding: '5px 10px' }}
+          >
+            Force Refresh
+          </button>
+        </div>
         {/* Tab Navigation */}
         <div className="tab-navigation">
           <button 
