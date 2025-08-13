@@ -6,20 +6,41 @@ const BLOB_PATH = 'labels/entries.json';
 // Check if we're in a browser environment
 const isBrowser = typeof window !== 'undefined';
 
+// Check if we have access to Vercel Blob
+const hasBlobAccess = () => {
+  try {
+    // Check if we're in a Node.js environment and have the token
+    if (typeof process !== 'undefined' && process.env && process.env.BLOB_READ_WRITE_TOKEN) {
+      return true;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+};
+
 // For local development, we'll use localStorage as a fallback
 // This will be true when running locally without BLOB_READ_WRITE_TOKEN
-const isLocalDev = isBrowser && !process.env.BLOB_READ_WRITE_TOKEN;
+const isLocalDev = isBrowser && !hasBlobAccess();
 
 export async function readEntries(): Promise<LabelEntry[]> {
   try {
+    console.log('Storage debug:', {
+      isBrowser,
+      isLocalDev,
+      hasBlobAccess: hasBlobAccess(),
+      envToken: process.env.BLOB_READ_WRITE_TOKEN ? 'present' : 'missing'
+    });
+
     // If we're in the browser and don't have blob token, use localStorage
     if (isLocalDev) {
+      console.log('Using localStorage fallback');
       const stored = localStorage.getItem('egg-label-entries');
       return stored ? JSON.parse(stored) : [];
     }
 
     // If we're on the server side, try to use Vercel Blob
-    if (!isBrowser) {
+    if (!isBrowser && hasBlobAccess()) {
       try {
         const { blobs } = await list({ prefix: 'labels/' });
         const entriesBlob = blobs.find(blob => blob.pathname === BLOB_PATH);
@@ -50,8 +71,16 @@ export async function readEntries(): Promise<LabelEntry[]> {
         return entries;
       } catch (blobError) {
         console.error('Vercel Blob error:', blobError);
+        // If Blob fails on server side, return empty array
+        // This prevents the app from crashing
         return [];
       }
+    }
+
+    // If we're on server side but don't have Blob access, return empty array
+    if (!isBrowser && !hasBlobAccess()) {
+      console.log('No Blob access on server side, returning empty array');
+      return [];
     }
 
     // Fallback to localStorage if we're in browser but blob failed
@@ -88,7 +117,7 @@ export async function writeEntries(entries: LabelEntry[]): Promise<void> {
     }
 
     // If we're on the server side, try to use Vercel Blob
-    if (!isBrowser) {
+    if (!isBrowser && hasBlobAccess()) {
       try {
         const jsonContent = JSON.stringify(entries, null, 2);
         const blob = new Blob([jsonContent], { type: 'application/json' });
