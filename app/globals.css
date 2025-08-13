@@ -43,6 +43,35 @@ body {
   padding: 20px;
 }
 
+/* Tab Navigation */
+.tab-navigation {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 20px;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.tab-btn {
+  background: none;
+  border: none;
+  padding: 12px 24px;
+  font-size: 1rem;
+  font-weight: 500;
+  color: #6b7280;
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  transition: all 0.2s;
+}
+
+.tab-btn:hover {
+  color: #374151;
+}
+
+.tab-btn.active {
+  color: #2563eb;
+  border-bottom-color: #2563eb;
+}
+
 .table-container {
   overflow-x: auto;
   margin-top: 20px;
@@ -98,6 +127,230 @@ tr:hover {
   color: #6b7280;
 }
 
+.dev-form {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.dev-form h3 {
+  margin: 0 0 15px 0;
+  color: #374151;
+  font-size: 1.1rem;
+}
+
+.form-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.form-row input {
+  padding: 8px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  font-size: 0.875rem;
+  min-width: 120px;
+}
+
+.form-row button {
+  background: #10b981;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.form-row button:hover {
+  background: #059669;
+}
+
+.delete-btn {
+  background: #ef4444;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  transition: background-color 0.2s;
+  font-weight: 500;
+  min-width: 60px;
+}
+
+.delete-btn:hover {
+  background: #dc2626;
+}
+
+/* Sheet Section */
+.sheet-section {
+  margin-top: 20px;
+}
+
+.sheet-controls {
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.sheet-info {
+  margin-top: 10px;
+  color: #6b7280;
+  font-size: 0.875rem;
+}
+
+.download-btn {
+  background: #2563eb;
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background-color 0.2s;
+}
+
+.download-btn:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.download-btn:disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
+}
+
+.sheet-preview {
+  margin-top: 20px;
+}
+
+.sheet-container {
+  background: white;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.labels-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-rows: repeat(6, 1fr);
+  gap: 8px;
+  max-width: 100%;
+  aspect-ratio: 4/6;
+}
+
+.label-item {
+  position: relative;
+  border: 2px solid #000;
+  border-radius: 0;
+  padding: 6px;
+  background: white;
+  min-height: 120px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  text-align: center;
+}
+
+.label-content {
+  flex: 1;
+  text-align: center;
+  font-family: Arial, sans-serif;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  min-height: 80px;
+}
+
+.label-cage {
+  font-weight: bold;
+  font-size: 1.2rem;
+  margin-bottom: 2px;
+  color: #000;
+  line-height: 1.2;
+}
+
+.label-name {
+  font-size: 1rem;
+  margin-bottom: 2px;
+  color: #000;
+  line-height: 1.1;
+}
+
+.egg-id {
+  font-size: 0.9rem;
+  color: #000;
+  line-height: 1.1;
+}
+
+.qr-placeholder {
+  margin-top: 4px;
+}
+
+.qr-box {
+  width: 70px;
+  height: 70px;
+  border: 1px solid #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.6rem;
+  font-weight: bold;
+  color: #000;
+  background: #f9f9f9;
+  object-fit: contain;
+  border-radius: 4px;
+}
+
+.delete-btn {
+  background: #ef4444;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  transition: background-color 0.2s;
+  font-weight: 500;
+  min-width: 60px;
+}
+
+/* Delete button for label sheet (hover) */
+.label-item .delete-btn {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  font-size: 14px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: auto;
+  padding: 0;
+}
+
+.delete-btn:hover {
+  background: #dc2626;
+}
+
+.no-entries {
+  text-align: center;
+  padding: 40px;
+  color: #6b7280;
+}
+
 @media (max-width: 768px) {
   body {
     padding: 10px;
@@ -111,6 +364,17 @@ tr:hover {
     padding: 15px;
   }
   
+  .tab-navigation {
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  .tab-btn {
+    width: 100%;
+    max-width: 200px;
+    margin-bottom: 5px;
+  }
+  
   th, td {
     padding: 8px;
     font-size: 0.875rem;
@@ -119,5 +383,47 @@ tr:hover {
   .qr-preview {
     width: 40px;
     height: 40px;
+  }
+
+  .labels-grid {
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: repeat(12, 1fr);
+    gap: 6px;
+  }
+
+  .label-item {
+    min-height: 100px;
+    padding: 6px;
+  }
+
+  .label-cage {
+    font-size: 1rem;
+  }
+
+  .label-name {
+    font-size: 0.9rem;
+  }
+
+  .egg-id {
+    font-size: 0.8rem;
+  }
+
+  .qr-box {
+    width: 50px;
+    height: 50px;
+    font-size: 0.5rem;
+  }
+
+  .sheet-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .download-btn {
+    margin: 0;
+    width: 100%;
+    max-width: 300px;
   }
 }

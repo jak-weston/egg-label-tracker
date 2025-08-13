@@ -10,9 +10,7 @@
   },
   "dependencies": {
     "@vercel/blob": "^0.22.0",
-    "iconv-lite": "^0.6.3",
     "next": "14.2.31",
-    "pdfkit": "^0.14.0",
     "qrcode": "^1.5.3",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
@@ -21,7 +19,6 @@
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
-    "@types/pdfkit": "^0.13.0",
     "@types/qrcode": "^1.5.0",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
