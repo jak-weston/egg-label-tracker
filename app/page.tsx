@@ -30,16 +30,53 @@ export default function Home() {
       });
 
       if (response.ok) {
-        // Remove from local state and local storage
-        const updatedEntries = entries.filter(entry => entry.id !== entryId);
-        setEntries(updatedEntries);
-        deleteEntryFromStorage(entryId);
+        // Refresh data from server to ensure consistency
+        await fetchData();
+        alert('Entry deleted successfully!');
       } else {
         const errorData = await response.json();
         alert(`Error: ${errorData.error}`);
       }
     } catch (error) {
       alert('Failed to delete entry');
+    }
+  };
+
+  const handleDeleteAll = async () => {
+    if (!confirm('Are you sure you want to delete ALL entries? This cannot be undone!')) {
+      return;
+    }
+
+    const secret = prompt('Enter your secret to delete all entries:');
+    if (!secret) return;
+
+    try {
+      // Delete all entries one by one
+      const deletePromises = entries.map(entry => 
+        fetch('/api/delete', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            secret,
+            entryId: entry.id,
+          }),
+        })
+      );
+
+      const responses = await Promise.all(deletePromises);
+      const allSuccessful = responses.every(response => response.ok);
+
+      if (allSuccessful) {
+        // Refresh data from server to ensure consistency
+        await fetchData();
+        alert('All entries deleted successfully!');
+      } else {
+        alert('Some entries could not be deleted. Please try again.');
+      }
+    } catch (error) {
+      alert('Failed to delete all entries');
     }
   };
 
@@ -272,6 +309,15 @@ export default function Home() {
           >
             Force Refresh
           </button>
+          <button 
+            onClick={() => {
+              console.log('Manual data refresh clicked');
+              fetchData();
+            }}
+            style={{ marginLeft: '10px', padding: '5px 10px', background: '#2563eb', color: 'white', border: 'none' }}
+          >
+            Refresh Data
+          </button>
         </div>
         {/* Tab Navigation */}
         <div className="tab-navigation">
@@ -314,6 +360,27 @@ export default function Home() {
               <button type="submit">Add Entry</button>
             </div>
           </form>
+          
+          {/* Delete All Button */}
+          {entries.length > 0 && (
+            <div style={{ marginTop: '15px', textAlign: 'center' }}>
+              <button 
+                onClick={handleDeleteAll}
+                style={{
+                  background: '#dc2626',
+                  color: 'white',
+                  border: 'none',
+                  padding: '8px 16px',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '0.875rem'
+                }}
+                title="Delete all entries (requires secret)"
+              >
+                🗑️ Delete All Entries
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Table View */}
