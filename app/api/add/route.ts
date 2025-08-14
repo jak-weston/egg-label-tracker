@@ -5,6 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { getFormattedBaseUrl } from '../../../lib/utils';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -14,7 +15,10 @@ export async function GET(request: NextRequest) {
   const cage = searchParams.get('cage');
   const link = searchParams.get('link');
 
+  console.log('GET /api/add called with params:', { egg_id, name, cage, hasSecret: !!secret });
+
   if (!secret || !egg_id || !name || !cage) {
+    console.error('Missing required parameters');
     const redirectUrl = getFormattedBaseUrl(process.env.NEXT_PUBLIC_BASE_URL);
     return NextResponse.redirect(
       `${redirectUrl}/?error=missing_params`,
@@ -24,6 +28,7 @@ export async function GET(request: NextRequest) {
 
   // Validate secret
   if (secret !== process.env.ADD_SECRET) {
+    console.error('Invalid secret provided');
     const redirectUrl = getFormattedBaseUrl(process.env.NEXT_PUBLIC_BASE_URL);
     return NextResponse.redirect(
       `${redirectUrl}/?error=unauthorized`,
@@ -32,7 +37,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // Ensure entries file exists
+    console.log('Ensuring entries file exists...');
     await ensureEntriesFile();
 
     // Create entry
@@ -45,10 +50,10 @@ export async function GET(request: NextRequest) {
       createdAt: new Date().toISOString(),
     };
 
-    // Append to storage
+    console.log('Adding entry:', entry);
     await appendEntry(entry);
 
-    // Redirect with success
+    console.log('Entry added successfully, redirecting...');
     const redirectUrl = getFormattedBaseUrl(process.env.NEXT_PUBLIC_BASE_URL);
     return NextResponse.redirect(
       `${redirectUrl}/?added=${egg_id}`,
@@ -66,18 +71,23 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('POST /api/add called');
+    
     const body = await request.json();
+    console.log('Request body received:', { ...body, secret: body.secret ? '[REDACTED]' : undefined });
+    
     const validatedData = AddEntrySchema.parse(body);
 
     // Validate secret
     if (validatedData.secret !== process.env.ADD_SECRET) {
+      console.error('Invalid secret in POST request');
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
       );
     }
 
-    // Ensure entries file exists
+    console.log('Ensuring entries file exists...');
     await ensureEntriesFile();
 
     // Create entry
@@ -90,23 +100,42 @@ export async function POST(request: NextRequest) {
       createdAt: new Date().toISOString(),
     };
 
-    // Append to storage
+    console.log('Adding entry via POST:', entry);
     await appendEntry(entry);
 
-    return NextResponse.json({ ok: true, entry });
+    console.log('Entry added successfully via POST');
+    return NextResponse.json(
+      { ok: true, entry },
+      {
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+        }
+      }
+    );
   } catch (error) {
-    console.error('Error adding entry:', error);
+    console.error('Error adding entry via POST:', error);
     
-    if (error instanceof Error && error.message.includes('Unauthorized')) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+    // More specific error handling
+    if (error instanceof Error) {
+      if (error.message.includes('Unauthorized')) {
+        return NextResponse.json(
+          { error: 'Unauthorized' },
+          { status: 401 }
+        );
+      }
+      
+      // Check for validation errors
+      if (error.name === 'ZodError') {
+        return NextResponse.json(
+          { error: 'Invalid request data', details: error.message },
+          { status: 400 }
+        );
+      }
     }
 
     return NextResponse.json(
-      { error: 'Invalid request data' },
-      { status: 400 }
+      { error: 'Internal server error', details: error instanceof Error ? error.message : 'Unknown error' },
+      { status: 500 }
     );
   }
 }

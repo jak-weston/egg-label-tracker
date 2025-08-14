@@ -1,48 +1,50 @@
 import { NextResponse } from 'next/server';
-import { LabelEntry } from '../../../lib/types';
+import { readEntries } from '../../../lib/storage';
 
 export const runtime = 'nodejs';
 
+// Disable caching for this route
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function GET() {
   try {
-    // Direct fetch from the known public blob URL
-    // This bypasses all the complex environment variable logic
-    // Add timestamp to prevent caching
-    const timestamp = Date.now();
-    const url = `https://ftfkrzqiv0pq9s2d.public.blob.vercel-storage.com/labels/entries.json?t=${timestamp}`;
-    const response = await fetch(url, {
-      cache: 'no-store',
-      headers: {
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache',
-        'Expires': '0'
+    console.log('GET /api/entries called');
+    
+    // Read entries using the improved storage function
+    const entries = await readEntries();
+    
+    console.log(`Successfully fetched ${entries.length} entries`);
+    
+    // Return with headers that prevent caching
+    return new NextResponse(
+      JSON.stringify({ ok: true, entries }),
+      {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate, max-age=0',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+          // Add timestamp to help with debugging
+          'X-Timestamp': new Date().toISOString(),
+        },
       }
-    });
-    
-    if (!response.ok) {
-      console.error('Failed to fetch from public blob URL:', response.status);
-      return NextResponse.json({ ok: true, entries: [] });
-    }
-    
-    const text = await response.text();
-    
-    let entries: LabelEntry[] = [];
-    try {
-      entries = JSON.parse(text);
-      if (!Array.isArray(entries)) {
-        entries = [];
-      }
-      console.log(`Successfully fetched ${entries.length} entries from public blob URL`);
-    } catch (parseError) {
-      console.error('Error parsing entries JSON:', parseError);
-      entries = [];
-    }
-
-    return NextResponse.json({ ok: true, entries });
+    );
   } catch (error) {
-    console.error('Error reading entries from public blob URL:', error);
+    console.error('Error in GET /api/entries:', error);
     
-    // Fallback: return empty array instead of error
-    return NextResponse.json({ ok: true, entries: [] });
+    // Return empty array on error instead of failing
+    return new NextResponse(
+      JSON.stringify({ ok: true, entries: [], error: 'Failed to fetch entries' }),
+      {
+        status: 200, // Still return 200 to prevent client errors
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'X-Error': 'true',
+        },
+      }
+    );
   }
 }

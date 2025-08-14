@@ -9,22 +9,9 @@ const isBrowser = typeof window !== 'undefined';
 // Check if we have access to Vercel Blob
 const hasBlobAccess = () => {
   try {
-    // Check if we're in a Node.js environment and have the token
     if (typeof process !== 'undefined' && process.env && process.env.BLOB_READ_WRITE_TOKEN) {
-      console.log('Blob access check: Token found, length:', process.env.BLOB_READ_WRITE_TOKEN.length);
       return true;
     }
-    
-    // Additional check for Vercel environment
-    if (typeof process !== 'undefined' && process.env && process.env.VERCEL) {
-      console.log('Blob access check: Running on Vercel, checking for token...');
-      if (process.env.BLOB_READ_WRITE_TOKEN) {
-        console.log('Blob access check: Token found on Vercel, length:', process.env.BLOB_READ_WRITE_TOKEN.length);
-        return true;
-      }
-    }
-    
-    console.log('Blob access check: No token found');
     return false;
   } catch (error) {
     console.log('Blob access check: Error checking access:', error);
@@ -32,39 +19,48 @@ const hasBlobAccess = () => {
   }
 };
 
-// For local development, we'll use localStorage as a fallback
-// This will be true when running locally without BLOB_READ_WRITE_TOKEN
+// For local development fallback
 const isLocalDev = isBrowser && !hasBlobAccess();
 
 export async function readEntries(): Promise<LabelEntry[]> {
   try {
-    console.log('Storage debug:', {
-      isBrowser,
-      isLocalDev,
-      hasBlobAccess: hasBlobAccess(),
-      envToken: process.env.BLOB_READ_WRITE_TOKEN ? 'present' : 'missing'
-    });
+    console.log('Reading entries...');
 
-    // If we're in the browser and don't have blob token, use localStorage
+    // Browser fallback to localStorage
     if (isLocalDev) {
       console.log('Using localStorage fallback');
       const stored = localStorage.getItem('egg-label-entries');
       return stored ? JSON.parse(stored) : [];
     }
 
-    // If we're on the server side, try to use Vercel Blob
+    // Server-side Vercel Blob access
     if (!isBrowser && hasBlobAccess()) {
       try {
-        const { blobs } = await list({ prefix: 'labels/' });
+        // First, try to list blobs to see if our file exists
+        const { blobs } = await list({ 
+          prefix: 'labels/',
+          mode: 'folded' // This helps with consistency
+        });
+        
         const entriesBlob = blobs.find(blob => blob.pathname === BLOB_PATH);
 
         if (!entriesBlob) {
+          console.log('No entries blob found, returning empty array');
           return [];
         }
 
-        // Fetch the blob content directly from the URL
-        const response = await fetch(entriesBlob.url);
+        // Fetch with cache-busting and proper headers
+        const response = await fetch(entriesBlob.url, {
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache'
+          },
+          // Add timestamp to URL to prevent caching
+          cache: 'no-store'
+        });
+        
         if (!response.ok) {
+          console.error('Failed to fetch blob:', response.status);
           return [];
         }
         
@@ -74,8 +70,10 @@ export async function readEntries(): Promise<LabelEntry[]> {
         try {
           entries = JSON.parse(text);
           if (!Array.isArray(entries)) {
+            console.warn('Entries is not an array, defaulting to empty array');
             entries = [];
           }
+          console.log(`Successfully read ${entries.length} entries`);
         } catch (parseError) {
           console.error('Error parsing entries JSON:', parseError);
           entries = [];
@@ -83,12 +81,23 @@ export async function readEntries(): Promise<LabelEntry[]> {
 
         return entries;
       } catch (blobError) {
-        console.error('Vercel Blob error:', blobError);
+        console.error('Vercel Blob read error:', blobError);
         
-        // Fallback: Try to fetch directly from the known public URL
+        // Fallback to direct URL with cache busting
         try {
           console.log('Trying direct URL fallback...');
-          const directResponse = await fetch('https://ftfkrzqiv0pq9s2d.public.blob.vercel-storage.com/labels/entries.json');
+          const timestamp = Date.now();
+          const directResponse = await fetch(
+            `https://ftfkrzqiv0pq9s2d.public.blob.vercel-storage.com/labels/entries.json?t=${timestamp}`,
+            {
+              headers: {
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                'Pragma': 'no-cache'
+              },
+              cache: 'no-store'
+            }
+          );
+          
           if (directResponse.ok) {
             const text = await directResponse.text();
             const fallbackEntries = JSON.parse(text);
@@ -96,21 +105,20 @@ export async function readEntries(): Promise<LabelEntry[]> {
             return Array.isArray(fallbackEntries) ? fallbackEntries : [];
           }
         } catch (fallbackError) {
-          console.error('Direct URL fallback also failed:', fallbackError);
+          console.error('Direct URL fallback failed:', fallbackError);
         }
         
-        // If all else fails, return empty array
         return [];
       }
     }
 
-    // If we're on server side but don't have Blob access, return empty array
+    // Server without blob access
     if (!isBrowser && !hasBlobAccess()) {
       console.log('No Blob access on server side, returning empty array');
       return [];
     }
 
-    // Fallback to localStorage if we're in browser but blob failed
+    // Browser fallback
     if (isBrowser) {
       const stored = localStorage.getItem('egg-label-entries');
       return stored ? JSON.parse(stored) : [];
@@ -120,7 +128,6 @@ export async function readEntries(): Promise<LabelEntry[]> {
   } catch (error) {
     console.error('Error reading entries:', error);
     
-    // Final fallback to localStorage if we're in browser
     if (isBrowser) {
       try {
         const stored = localStorage.getItem('egg-label-entries');
@@ -137,45 +144,59 @@ export async function readEntries(): Promise<LabelEntry[]> {
 
 export async function writeEntries(entries: LabelEntry[]): Promise<void> {
   try {
-    // If we're in the browser and don't have blob token, use localStorage
+    console.log(`Writing ${entries.length} entries...`);
+
+    // Browser fallback
     if (isLocalDev) {
       localStorage.setItem('egg-label-entries', JSON.stringify(entries, null, 2));
+      console.log('Entries saved to localStorage');
       return;
     }
 
-    // If we're on the server side, try to use Vercel Blob
+    // Server-side Vercel Blob
     if (!isBrowser && hasBlobAccess()) {
       try {
         const jsonContent = JSON.stringify(entries, null, 2);
-        const blob = new Blob([jsonContent], { type: 'application/json' });
         
-        await put(BLOB_PATH, blob, {
+        // Create blob with proper options
+        const result = await put(BLOB_PATH, jsonContent, {
           access: 'public',
           addRandomSuffix: false,
+          contentType: 'application/json',
         });
+        
+        console.log('Successfully wrote to blob:', result.url);
+        
+        // Add a small delay to ensure the write is propagated
+        // This helps with consistency issues
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
         return;
       } catch (blobError) {
         console.error('Vercel Blob write error:', blobError);
-        throw new Error('Failed to write to Vercel Blob');
+        throw new Error(`Failed to write to Vercel Blob: ${blobError.message}`);
       }
     }
 
-    // Fallback to localStorage if we're in browser but blob failed
+    // Browser fallback
     if (isBrowser) {
       localStorage.setItem('egg-label-entries', JSON.stringify(entries, null, 2));
+      console.log('Entries saved to localStorage (browser fallback)');
       return;
     }
+
+    throw new Error('No storage method available');
   } catch (error) {
     console.error('Error writing entries:', error);
     
-    // Final fallback to localStorage if we're in browser
     if (isBrowser) {
       try {
         localStorage.setItem('egg-label-entries', JSON.stringify(entries, null, 2));
+        console.log('Entries saved to localStorage (error fallback)');
         return;
       } catch (localStorageError) {
         console.error('localStorage write error:', localStorageError);
-        throw new Error('Failed to write entries to storage');
+        throw new Error('Failed to write entries to any storage method');
       }
     }
     
@@ -184,26 +205,67 @@ export async function writeEntries(entries: LabelEntry[]): Promise<void> {
 }
 
 export async function appendEntry(entry: LabelEntry): Promise<void> {
-  const entries = await readEntries();
-  entries.push(entry);
-  await writeEntries(entries);
+  try {
+    console.log('Appending entry:', entry.id);
+    const entries = await readEntries();
+    
+    // Check for duplicates
+    const existingEntry = entries.find(e => e.id === entry.id || e.egg_id === entry.egg_id);
+    if (existingEntry) {
+      console.warn('Entry with same ID or egg_id already exists, skipping append');
+      return;
+    }
+    
+    entries.push(entry);
+    await writeEntries(entries);
+    console.log('Entry appended successfully');
+  } catch (error) {
+    console.error('Error appending entry:', error);
+    throw error;
+  }
 }
 
 export async function deleteEntry(entryId: string): Promise<void> {
-  const entries = await readEntries();
-  const filteredEntries = entries.filter(entry => entry.id !== entryId);
-  await writeEntries(filteredEntries);
+  try {
+    console.log('Deleting entry:', entryId);
+    const entries = await readEntries();
+    const initialLength = entries.length;
+    
+    const filteredEntries = entries.filter(entry => entry.id !== entryId);
+    
+    if (filteredEntries.length === initialLength) {
+      console.warn('No entry found with ID:', entryId);
+      // Still write back to ensure consistency
+    }
+    
+    await writeEntries(filteredEntries);
+    console.log(`Entry deletion complete. Removed ${initialLength - filteredEntries.length} entries`);
+  } catch (error) {
+    console.error('Error deleting entry:', error);
+    throw error;
+  }
 }
 
 export async function ensureEntriesFile(): Promise<void> {
   try {
+    console.log('Ensuring entries file exists...');
+    
+    // Try to read first
     const entries = await readEntries();
-    if (entries.length === 0) {
-      // Initialize with empty array if file doesn't exist
-      await writeEntries([]);
-    }
+    console.log(`Entries file check: found ${entries.length} entries`);
+    
+    // Always write back to ensure file exists and is properly formatted
+    await writeEntries(entries);
+    console.log('Entries file ensured');
   } catch (error) {
-    // If reading fails, create the file
-    await writeEntries([]);
+    console.error('Error ensuring entries file:', error);
+    // If all else fails, create empty file
+    try {
+      await writeEntries([]);
+      console.log('Created empty entries file');
+    } catch (createError) {
+      console.error('Failed to create empty entries file:', createError);
+      throw createError;
+    }
   }
 }
