@@ -9,6 +9,7 @@ A minimal Next.js 14 application for tracking and managing egg labels with QR co
 - **Label Sheet Preview**: View how labels would look on an 8.5" x 11" sheet
 - **Delete Labels**: Remove entries with secret validation
 - **Download Sheet**: Export the label sheet as a PNG image
+- **Current Egg Number Management**: View and manually reset the current egg number counter
 - **Data Storage**: Persistent storage using Vercel Blob (with localStorage fallback for development)
 - **Responsive UI**: Clean, responsive table interface
 - **TypeScript**: Full TypeScript support with strict typing
@@ -41,6 +42,19 @@ Delete an egg label entry.
 - `entryId` (string): ID of the entry to delete
 
 **Response:** `{ ok: true, message: 'Entry deleted successfully' }`
+
+### `GET /api/egg-number`
+Get the current egg number (next available number).
+
+**Response:** `{ success: true, currentEggNumber: number }`
+
+### `POST /api/egg-number`
+Set the current egg number manually.
+
+**Parameters:**
+- `number` (number): The new egg number to set
+
+**Response:** `{ success: true, message: string, currentEggNumber: number }`
 
 ### `GET /api/qr?link={URL}`
 Generate a PNG QR code for the specified link.

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { writeEntries, readEntries } from '../../../lib/storage';
+import { writeEntries, readEntries, generateNextEggId } from '../../../lib/storage';
 import { LabelEntry } from '../../../lib/types';
 
 export const runtime = 'nodejs';
@@ -30,13 +30,16 @@ export async function POST(request: NextRequest) {
     // Read existing entries
     const existingEntries = await readEntries();
     
+    // Generate the egg ID first so we can use it in the link
+    const eggId = await generateNextEggId();
+    
     // Create new entry
     const newEntry: LabelEntry = {
       id: generateId(),
-      egg_id: await generateSequentialEggId(), // Auto-generate egg_id
+      egg_id: eggId, // Use the generated egg ID
       name: notionData.name,
       cage: notionData.cage,
-      link: notionData.link,
+      link: `https://www.notion.so/${eggId}`, // Use EGG-# format for link
       createdAt: new Date().toISOString()
     };
     
@@ -106,19 +109,15 @@ function extractNotionData(webhookBody: any) {
       
       const [name, cage] = parts.map((part: string) => part.trim());
       
-      // Generate a link to the Notion page
-      const pageId = webhookBody.data.id;
-      const link = `https://www.notion.so/${pageId.replace(/-/g, '')}`;
-      
       // Validate required fields
       if (!name || !cage) {
         console.log('Missing required fields after parsing:', { name, cage });
         return null;
       }
       
-      console.log('Successfully extracted data:', { name, cage, link });
+      console.log('Successfully extracted data:', { name, cage });
       
-      return { name, cage, link };
+      return { name, cage };
     }
     
     // Fallback: try the old format
@@ -140,18 +139,15 @@ function extractNotionData(webhookBody: any) {
     
     const [name, cage] = parts.map((part: string) => part.trim());
     
-    // Generate a link (you can customize this)
-    const link = `https://www.notion.so/${webhookBody?.pageId || 'page'}`;
-    
     // Validate required fields
     if (!name || !cage) {
       console.log('Missing required fields after parsing:', { name, cage });
       return null;
     }
     
-    console.log('Successfully extracted data:', { name, cage, link });
+    console.log('Successfully extracted data:', { name, cage });
     
-    return { name, cage, link };
+    return { name, cage };
     
   } catch (error) {
     console.error('Error extracting Notion data:', error);
@@ -164,32 +160,4 @@ function generateId(): string {
   return Math.random().toString(36).substring(2) + Date.now().toString(36);
 }
 
-// Generate sequential egg ID (Egg-119, Egg-120, etc.)
-async function generateSequentialEggId(): Promise<string> {
-  try {
-    const existingEntries = await readEntries();
-    
-    // Find the highest existing egg ID number
-    let highestNumber = 0;
-    existingEntries.forEach(entry => {
-      const match = entry.egg_id.match(/Egg-(\d+)/);
-      if (match) {
-        const number = parseInt(match[1]);
-        if (number > highestNumber) {
-          highestNumber = number;
-        }
-      }
-    });
-    
-    // Generate next sequential number
-    const nextNumber = highestNumber + 1;
-    const eggId = `Egg-${nextNumber}`;
-    
-    console.log(`Generated sequential egg ID: ${eggId} (previous highest: ${highestNumber})`);
-    return eggId;
-  } catch (error) {
-    console.error('Error generating sequential egg ID:', error);
-    // Fallback to timestamp-based ID
-    return `Egg-${Date.now()}`;
-  }
-}
+

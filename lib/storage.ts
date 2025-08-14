@@ -242,3 +242,109 @@ export async function ensureEntriesFile(): Promise<void> {
     }
   }
 }
+
+// Get the current egg number (next available number)
+export async function getCurrentEggNumber(): Promise<number> {
+  try {
+    const entries = await readEntries();
+    
+    // Find the highest existing egg ID number
+    let highestNumber = 0;
+    entries.forEach(entry => {
+      const match = entry.egg_id.match(/EGG-(\d+)/);
+      if (match) {
+        const number = parseInt(match[1]);
+        if (number > highestNumber) {
+          highestNumber = number;
+        }
+      }
+    });
+    
+    // Return the next available number
+    return highestNumber + 1;
+  } catch (error) {
+    console.error('Error getting current egg number:', error);
+    return 1; // Default to 1 if error
+  }
+}
+
+// Set the current egg number manually
+export async function setCurrentEggNumber(number: number): Promise<void> {
+  try {
+    console.log(`Setting current egg number to: ${number}`);
+    
+    // We need to create a dummy entry with this number to "reserve" it
+    // This ensures the next auto-generated number will be higher
+    const entries = await readEntries();
+    
+    // Check if we already have an entry with this number
+    const existingEntry = entries.find(entry => {
+      const match = entry.egg_id.match(/EGG-(\d+)/);
+      return match && parseInt(match[1]) === number;
+    });
+    
+    if (existingEntry) {
+      console.log(`Entry with egg number ${number} already exists, no action needed`);
+      return;
+    }
+    
+    // Create a temporary entry to reserve this number
+    const tempEntry: any = {
+      id: `temp-${Date.now()}`,
+      egg_id: `EGG-${number}`,
+      name: `RESET-${number}`,
+      cage: 'RESET',
+      link: `https://reset-${number}.example.com`,
+      createdAt: new Date().toISOString(),
+      isReset: true // Mark as reset entry
+    };
+    
+    entries.push(tempEntry);
+    await writeEntries(entries);
+    
+    // Clean up old reset entries
+    await cleanupResetEntries();
+    
+    console.log(`Successfully set current egg number to ${number}`);
+  } catch (error) {
+    console.error('Error setting current egg number:', error);
+    throw error;
+  }
+}
+
+// Generate the next sequential egg ID
+export async function generateNextEggId(): Promise<string> {
+  try {
+    const nextNumber = await getCurrentEggNumber();
+    const eggId = `EGG-${nextNumber}`;
+    console.log(`Generated next egg ID: ${eggId}`);
+    return eggId;
+  } catch (error) {
+    console.error('Error generating next egg ID:', error);
+    // Fallback to timestamp-based ID
+    return `Egg-${Date.now()}`;
+  }
+}
+
+// Clean up old reset entries (keep only the most recent one)
+export async function cleanupResetEntries(): Promise<void> {
+  try {
+    const entries = await readEntries();
+    const resetEntries = entries.filter(entry => entry.isReset);
+    
+    if (resetEntries.length > 1) {
+      // Keep only the most recent reset entry
+      const sortedResetEntries = resetEntries.sort((a, b) => 
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+      
+      const entriesToRemove = sortedResetEntries.slice(1);
+      const updatedEntries = entries.filter(entry => !entriesToRemove.includes(entry));
+      
+      await writeEntries(updatedEntries);
+      console.log(`Cleaned up ${entriesToRemove.length} old reset entries`);
+    }
+  } catch (error) {
+    console.error('Error cleaning up reset entries:', error);
+  }
+}

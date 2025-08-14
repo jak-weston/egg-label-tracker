@@ -10,17 +10,20 @@ export default function Home() {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [draggedEntry, setDraggedEntry] = useState<LabelEntry | null>(null);
   const [previewLayout, setPreviewLayout] = useState<(LabelEntry | null)[]>([]);
-  const formRef = useRef<HTMLFormElement>(null);
+  const [currentEggNumber, setCurrentEggNumber] = useState<number>(0);
+  const [resetNumber, setResetNumber] = useState<string>('');
 
   useEffect(() => {
     console.log('Component mounted, calling fetchData');
     fetchData();
+    fetchCurrentEggNumber();
   }, []);
 
   useEffect(() => {
-    // Initialize preview layout with entries in order
+    // Initialize preview layout with entries in order (excluding reset entries)
     const layout = Array(24).fill(null);
-    entries.forEach((entry, index) => {
+    const nonResetEntries = entries.filter(entry => !entry.isReset);
+    nonResetEntries.forEach((entry, index) => {
       if (index < 24) {
         layout[index] = entry;
       }
@@ -52,46 +55,51 @@ export default function Home() {
     }
   };
 
-  const handleAdd = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    console.log('Form submitted');
-    
-    const formData = new FormData(event.currentTarget);
-    const egg_id = formData.get('egg_id') as string;
-    const name = formData.get('name') as string;
-    const cage = formData.get('cage') as string;
-    
-    console.log('Form data:', { egg_id, name, cage });
-    
+  const fetchCurrentEggNumber = async () => {
     try {
-      const response = await fetch('/api/add', {
+      const response = await fetch('/api/egg-number');
+      if (response.ok) {
+        const data = await response.json();
+        setCurrentEggNumber(data.currentEggNumber);
+      }
+    } catch (error) {
+      console.error('Error fetching current egg number:', error);
+    }
+  };
+
+  const handleResetEggNumber = async () => {
+    const number = parseInt(resetNumber);
+    if (isNaN(number) || number < 1) {
+      alert('Please enter a valid positive number');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/egg-number', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          egg_id,
-          name,
-          cage,
-        }),
+        body: JSON.stringify({ number }),
       });
-      
-      console.log('Add response status:', response.status);
-      
+
       if (response.ok) {
-        console.log('Entry added successfully');
-        // Reset form safely
-        if (formRef.current) {
-          formRef.current.reset();
-        }
-        await fetchData(); // Refresh data
+        const data = await response.json();
+        setCurrentEggNumber(data.currentEggNumber);
+        setResetNumber('');
+        alert(`Egg number reset to ${number}`);
+        await fetchData(); // Refresh data to show the reset entry
       } else {
-        console.log('Add failed');
+        const errorData = await response.json();
+        alert(`Error: ${errorData.error}`);
       }
     } catch (error) {
-      console.error('Error adding entry:', error);
+      console.error('Error resetting egg number:', error);
+      alert('Error resetting egg number');
     }
   };
+
+
 
   const handleDelete = async (entryId: string) => {
     console.log('Deleting entry:', entryId);
@@ -521,20 +529,44 @@ export default function Home() {
         </button>
       </div>
 
-      {/* Add Form */}
-      <div style={{ marginBottom: '30px', padding: '20px', border: '1px solid #ccc', borderRadius: '8px' }}>
-        <h3>Add New Entry</h3>
-        <form ref={formRef} onSubmit={handleAdd}>
-          <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
-            <input name="egg_id" placeholder="Egg ID" required style={{ padding: '8px', flex: 1 }} />
-            <input name="name" placeholder="Name" required style={{ padding: '8px', flex: 1 }} />
-            <input name="cage" placeholder="Cage" required style={{ padding: '8px', flex: 1 }} />
-            <button type="submit" style={{ padding: '8px 16px', background: '#007bff', color: 'white', border: 'none', borderRadius: '4px' }}>
-              Add Entry
-            </button>
-          </div>
-        </form>
-      </div>
+             {/* Current Egg Number Display and Reset */}
+       <div style={{ marginBottom: '30px', padding: '20px', border: '1px solid #ccc', borderRadius: '8px' }}>
+         <h3>Egg Number Management</h3>
+         
+         <div style={{ marginBottom: '20px', padding: '15px', background: '#f8f9fa', borderRadius: '6px', border: '1px solid #dee2e6' }}>
+           <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '10px' }}>
+             <strong>Current Egg #: {currentEggNumber}</strong>
+             <span style={{ color: '#666', fontSize: '14px' }}>(Next available number)</span>
+           </div>
+           <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+             <input
+               type="number"
+               value={resetNumber}
+               onChange={(e) => setResetNumber(e.target.value)}
+               placeholder="Enter new egg number"
+               min="1"
+               style={{ padding: '8px', width: '200px', border: '1px solid #ccc', borderRadius: '4px' }}
+             />
+             <button
+               type="button"
+               onClick={handleResetEggNumber}
+               style={{ 
+                 padding: '8px 16px', 
+                 background: '#dc3545', 
+                 color: 'white', 
+                 border: 'none', 
+                 borderRadius: '4px',
+                 cursor: 'pointer'
+               }}
+             >
+               Reset Egg #
+             </button>
+           </div>
+           <p style={{ marginTop: '10px', color: '#666', fontSize: '14px' }}>
+             <strong>Note:</strong> New entries can only be added via webhook from Notion. Manual entry is disabled.
+           </p>
+         </div>
+       </div>
 
       {/* Table View */}
       {activeTab === 'table' && (
@@ -560,7 +592,9 @@ export default function Home() {
                   </td>
                 </tr>
               ) : (
-                entries.map((entry) => (
+                entries
+                  .filter(entry => !entry.isReset) // Filter out reset entries
+                  .map((entry) => (
                   <tr key={entry.id}>
                     <td style={{ padding: '12px', border: '1px solid #ddd' }}>{entry.egg_id}</td>
                     <td style={{ padding: '12px', border: '1px solid #ddd' }}>{entry.name}</td>
@@ -606,48 +640,89 @@ export default function Home() {
       {/* Label Sheet View */}
       {activeTab === 'sheet' && (
         <div>
-          <div style={{ marginBottom: '20px', textAlign: 'center' }}>
-            <button
-              onClick={downloadSheet}
-              style={{
-                padding: '12px 24px',
-                background: '#28a745',
-                color: 'white',
-                border: 'none',
-                borderRadius: '6px',
-                fontSize: '16px',
-                cursor: 'pointer',
-                marginRight: '10px'
-              }}
-            >
-              🖨️ Download Sheet as PNG
-            </button>
-            <button
-              onClick={() => {
-                const layout = Array(24).fill(null);
-                entries.forEach((entry, index) => {
-                  if (index < 24) {
-                    layout[index] = entry;
-                  }
-                });
-                setPreviewLayout(layout);
-              }}
-              style={{
-                padding: '12px 24px',
-                background: '#6c757d',
-                color: 'white',
-                border: 'none',
-                borderRadius: '6px',
-                fontSize: '16px',
-                cursor: 'pointer'
-              }}
-            >
-              🔄 Reset Layout
-            </button>
-            <p style={{ marginTop: '10px', color: '#666' }}>
-              A4 (21cm × 29.7cm) - 4cm × 4cm labels, 4×6 grid layout
-            </p>
-          </div>
+                     <div style={{ marginBottom: '20px', textAlign: 'center' }}>
+             <button
+               onClick={downloadSheet}
+               style={{
+                 padding: '12px 24px',
+                 background: '#28a745',
+                 color: 'white',
+                 border: 'none',
+                 borderRadius: '6px',
+                 fontSize: '16px',
+                 cursor: 'pointer',
+                 marginRight: '10px'
+               }}
+             >
+               🖨️ Download Current Page as PNG
+             </button>
+             <button
+               onClick={() => {
+                 const layout = Array(24).fill(null);
+                 const nonResetEntries = entries.filter(entry => !entry.isReset);
+                 nonResetEntries.forEach((entry, index) => {
+                   if (index < 24) {
+                     layout[index] = entry;
+                   }
+                 });
+                 setPreviewLayout(layout);
+               }}
+               style={{
+                 padding: '12px 24px',
+                 background: '#6c757d',
+                 color: 'white',
+                 border: 'none',
+                 borderRadius: '6px',
+                 fontSize: '16px',
+                 cursor: 'pointer'
+               }}
+             >
+               🔄 Reset Layout
+             </button>
+             <p style={{ marginTop: '10px', color: '#666' }}>
+               A4 (21cm × 29.7cm) - 4cm × 4cm labels, 4×6 grid layout
+             </p>
+             
+             {/* Page Navigation for Multiple Pages */}
+             {entries.filter(entry => !entry.isReset).length > 24 && (
+               <div style={{ marginTop: '15px', padding: '15px', background: '#f8f9fa', borderRadius: '6px', border: '1px solid #dee2e6' }}>
+                 <h4 style={{ margin: '0 0 10px 0', color: '#333' }}>Multiple Pages Available</h4>
+                 <p style={{ margin: '0 0 15px 0', color: '#666', fontSize: '14px' }}>
+                   You have {entries.filter(entry => !entry.isReset).length} entries, which requires {Math.ceil(entries.filter(entry => !entry.isReset).length / 24)} pages.
+                 </p>
+                 <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                   {Array.from({ length: Math.ceil(entries.filter(entry => !entry.isReset).length / 24) }, (_, pageIndex) => (
+                     <button
+                       key={pageIndex}
+                       onClick={() => {
+                         const layout = Array(24).fill(null);
+                         const nonResetEntries = entries.filter(entry => !entry.isReset);
+                         const startIndex = pageIndex * 24;
+                         nonResetEntries.slice(startIndex, startIndex + 24).forEach((entry, index) => {
+                           layout[index] = entry;
+                         });
+                         setPreviewLayout(layout);
+                       }}
+                       style={{
+                         padding: '8px 16px',
+                         background: '#007bff',
+                         color: 'white',
+                         border: 'none',
+                         borderRadius: '4px',
+                         cursor: 'pointer',
+                         fontSize: '14px'
+                       }}
+                     >
+                       Page {pageIndex + 1}
+                     </button>
+                   ))}
+                 </div>
+                 <p style={{ marginTop: '10px', color: '#666', fontSize: '12px' }}>
+                   <strong>Tip:</strong> Click a page number to view and download that specific page of labels.
+                 </p>
+               </div>
+             )}
+           </div>
 
           {entries.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>

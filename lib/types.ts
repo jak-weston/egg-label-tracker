@@ -5,4 +5,5 @@ export interface LabelEntry {
   cage: string;
   link: string;
   createdAt: string;
+  isReset?: boolean; // Optional flag for reset entries
 }
