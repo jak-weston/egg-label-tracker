@@ -1,0 +1,115 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { writeEntries, readEntries } from '../../../lib/storage';
+import { LabelEntry } from '../../../lib/types';
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
+export async function POST(request: NextRequest) {
+  try {
+    console.log('Webhook received from Notion');
+    
+    // Verify the request is from Notion (optional but recommended)
+    const notionSignature = request.headers.get('x-notion-signature');
+    if (!notionSignature) {
+      console.log('No Notion signature found - request may not be from Notion');
+    }
+    
+    const body = await request.json();
+    console.log('Webhook body:', JSON.stringify(body, null, 2));
+    
+    // Extract the relevant data from the Notion webhook
+    // The exact structure depends on your Notion database setup
+    const notionData = extractNotionData(body);
+    
+    if (!notionData) {
+      console.log('Could not extract valid data from webhook');
+      return NextResponse.json({ error: 'Invalid webhook data' }, { status: 400 });
+    }
+    
+    // Read existing entries
+    const existingEntries = await readEntries();
+    
+    // Create new entry
+    const newEntry: LabelEntry = {
+      id: generateId(),
+      egg_id: notionData.egg_id,
+      name: notionData.name,
+      cage: notionData.cage,
+      link: notionData.link,
+      createdAt: new Date().toISOString()
+    };
+    
+    console.log('Creating new entry from webhook:', newEntry);
+    
+    // Add to existing entries
+    const updatedEntries = [...existingEntries, newEntry];
+    
+    // Write back to storage
+    await writeEntries(updatedEntries);
+    
+    console.log('Webhook entry created successfully');
+    
+    return NextResponse.json({ 
+      success: true, 
+      message: 'Entry created from webhook',
+      entry: newEntry
+    });
+    
+  } catch (error) {
+    console.error('Error processing webhook:', error);
+    return NextResponse.json(
+      { error: 'Failed to process webhook' },
+      { status: 500 }
+    );
+  }
+}
+
+// Function to extract data from Notion webhook payload
+function extractNotionData(webhookBody: any) {
+  try {
+    console.log('Processing webhook body:', webhookBody);
+    
+    // Expect a simple format from your Notion formula
+    // The formula should output something like: "EggID|Name|Cage"
+    const formulaContent = webhookBody?.formulaContent || webhookBody?.content || webhookBody?.text || '';
+    
+    if (!formulaContent) {
+      console.log('No formula content found in webhook body');
+      return null;
+    }
+    
+    // Parse the formula content (assuming format: "EggID|Name|Cage")
+    const parts = formulaContent.split('|');
+    
+    if (parts.length < 3) {
+      console.log('Formula content format incorrect. Expected 3 parts, got:', parts.length);
+      console.log('Content:', formulaContent);
+      return null;
+    }
+    
+    const [egg_id, name, cage] = parts.map(part => part.trim());
+    
+    // Generate a link (you can customize this)
+    const link = `https://www.notion.so/${webhookBody?.pageId || 'page'}`;
+    
+    // Validate required fields
+    if (!egg_id || !name || !cage) {
+      console.log('Missing required fields after parsing:', { egg_id, name, cage });
+      return null;
+    }
+    
+    console.log('Successfully extracted data:', { egg_id, name, cage, link });
+    
+    return { egg_id, name, cage, link };
+    
+  } catch (error) {
+    console.error('Error extracting Notion data:', error);
+    return null;
+  }
+}
+
+// Generate a unique ID
+function generateId(): string {
+  return Math.random().toString(36).substring(2) + Date.now().toString(36);
+}

@@ -1,168 +1,157 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { LabelEntry } from '../lib/types';
-import { readEntriesFromStorage, deleteEntryFromStorage, appendEntryToStorage } from '../lib/clientStorage';
 
 export default function Home() {
   const [entries, setEntries] = useState<LabelEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'table' | 'sheet'>('table');
-  const [forceUpdate, setForceUpdate] = useState(0);
-
-  const handleDelete = async (entryId: string) => {
-    if (!confirm('Are you sure you want to delete this entry?')) {
-      return;
-    }
-
-    const secret = prompt('Enter your secret to delete this entry:');
-    if (!secret) return;
-
-    // Capture current state before optimistic update
-    const currentEntries = [...entries];
-    
-    try {
-      // Optimistic update - remove from UI immediately
-      const updatedEntries = currentEntries.filter(entry => entry.id !== entryId);
-      setEntries(updatedEntries);
-      
-      // Try to delete from server
-      const response = await fetch('/api/delete', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          secret,
-          entryId,
-        }),
-      });
-
-      if (response.ok) {
-        alert('Entry deleted successfully!');
-        // Refresh data to ensure consistency
-        await fetchData();
-      } else {
-        // Revert optimistic update if server delete failed
-        setEntries(currentEntries);
-        const errorData = await response.json();
-        alert(`Error: ${errorData.error}`);
-      }
-    } catch (error) {
-      // Revert optimistic update if there was an error
-      setEntries(currentEntries);
-      alert('Failed to delete entry');
-    }
-  };
-
-  const handleDeleteAll = async () => {
-    if (!confirm('Are you sure you want to delete ALL entries? This cannot be undone!')) {
-      return;
-    }
-
-    const secret = prompt('Enter your secret to delete all entries:');
-    if (!secret) return;
-
-    // Capture current state before optimistic update
-    const originalEntries = [...entries];
-    
-    try {
-      // Optimistic update - clear UI immediately
-      setEntries([]);
-      
-      // Try to delete all from server
-      const deletePromises = originalEntries.map(entry => 
-        fetch('/api/delete', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            secret,
-            entryId: entry.id,
-          }),
-        })
-      );
-
-      const responses = await Promise.all(deletePromises);
-      const allSuccessful = responses.every(response => response.ok);
-
-      if (allSuccessful) {
-        alert('All entries deleted successfully!');
-        // Refresh data to ensure consistency
-        await fetchData();
-      } else {
-        // Revert optimistic update if some deletes failed
-        setEntries(originalEntries);
-        alert('Some entries could not be deleted. Please try again.');
-      }
-    } catch (error) {
-      // Revert optimistic update if there was an error
-      setEntries(originalEntries);
-      alert('Failed to delete all entries');
-    }
-  };
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [draggedEntry, setDraggedEntry] = useState<LabelEntry | null>(null);
+  const [previewLayout, setPreviewLayout] = useState<(LabelEntry | null)[]>([]);
+  const formRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
     console.log('Component mounted, calling fetchData');
     fetchData();
   }, []);
 
-  // Debug state changes
   useEffect(() => {
-    console.log('Loading state changed:', loading);
-  }, [loading]);
-
-  useEffect(() => {
-    console.log('Entries state changed:', entries.length, entries);
+    // Initialize preview layout with entries in order
+    const layout = Array(24).fill(null);
+    entries.forEach((entry, index) => {
+      if (index < 24) {
+        layout[index] = entry;
+      }
+    });
+    setPreviewLayout(layout);
   }, [entries]);
 
   const fetchData = async () => {
     try {
+      console.log('Fetching data...');
       setLoading(true);
       
-      // Try to fetch from API first
-      try {
-        const response = await fetch('/api/data');
-        if (response.ok) {
-          const data = await response.json();
-          console.log('API response:', data);
-          console.log('Setting entries:', data.entries);
-          setEntries(data.entries || []);
-          console.log('Setting loading to false');
-          setLoading(false);
-          // Force a re-render
-          setForceUpdate(prev => prev + 1);
-          return;
-        } else {
-          console.log('API response not ok:', response.status);
-        }
-      } catch (apiError) {
-        console.log('API not available, using local storage:', apiError);
-      }
+      const response = await fetch('/api/data');
+      console.log('API response status:', response.status);
       
-      // Fallback to local storage for local development
-      console.log('Falling back to local storage');
-      const localEntries = readEntriesFromStorage();
-      setEntries(localEntries);
-      setLoading(false);
-    } catch (err) {
-      console.error('Error fetching data:', err);
-      setError('Failed to load data');
+      if (response.ok) {
+        const data = await response.json();
+        console.log('API response data:', data);
+        setEntries(data.entries || []);
+      } else {
+        console.log('API failed, using empty array');
+        setEntries([]);
+      }
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      setEntries([]);
+    } finally {
       setLoading(false);
     }
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+  const handleAdd = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    console.log('Form submitted');
+    
+    const formData = new FormData(event.currentTarget);
+    const egg_id = formData.get('egg_id') as string;
+    const name = formData.get('name') as string;
+    const cage = formData.get('cage') as string;
+    
+    console.log('Form data:', { egg_id, name, cage });
+    
+    try {
+      const response = await fetch('/api/add', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          egg_id,
+          name,
+          cage,
+        }),
+      });
+      
+      console.log('Add response status:', response.status);
+      
+      if (response.ok) {
+        console.log('Entry added successfully');
+        // Reset form safely
+        if (formRef.current) {
+          formRef.current.reset();
+        }
+        await fetchData(); // Refresh data
+      } else {
+        console.log('Add failed');
+      }
+    } catch (error) {
+      console.error('Error adding entry:', error);
+    }
+  };
+
+  const handleDelete = async (entryId: string) => {
+    console.log('Deleting entry:', entryId);
+    
+    try {
+      const response = await fetch('/api/delete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          entryId,
+        }),
+      });
+      
+      console.log('Delete response status:', response.status);
+      
+      if (response.ok) {
+        console.log('Entry deleted successfully');
+        await fetchData(); // Refresh data
+      } else {
+        console.log('Delete failed');
+      }
+    } catch (error) {
+      console.error('Error deleting entry:', error);
+    }
+  };
+
+  const handleDragStart = (entry: LabelEntry, index: number) => {
+    setDraggedEntry(entry);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (targetIndex: number) => {
+    if (!draggedEntry) return;
+
+    const newLayout = [...previewLayout];
+    
+    // Find the source index of the dragged entry
+    const sourceIndex = newLayout.findIndex(item => item?.id === draggedEntry.id);
+    
+    if (sourceIndex !== -1) {
+      // If target position is empty, move the entry
+      if (newLayout[targetIndex] === null) {
+        newLayout[targetIndex] = draggedEntry;
+        newLayout[sourceIndex] = null;
+      } else {
+        // If target position has an entry, swap them
+        const temp = newLayout[targetIndex];
+        newLayout[targetIndex] = draggedEntry;
+        newLayout[sourceIndex] = temp;
+      }
+      
+      setPreviewLayout(newLayout);
+    }
+    
+    setDraggedEntry(null);
   };
 
   const downloadSheet = async () => {
@@ -207,8 +196,10 @@ export default function Home() {
     const startY = topMargin + (availableHeight - gridHeight) / 2;
 
     // Process entries sequentially to avoid async issues
-    for (let index = 0; index < Math.min(entries.length, labelsPerRow * labelsPerCol); index++) {
-      const entry = entries[index];
+    for (let index = 0; index < labelsPerRow * labelsPerCol; index++) {
+      const entry = previewLayout[index];
+      if (!entry) continue;
+      
       const row = Math.floor(index / labelsPerRow);
       const col = index % labelsPerRow;
       
@@ -224,14 +215,14 @@ export default function Home() {
       ctx.fillStyle = '#000';
       ctx.textAlign = 'center';
       
-             // Cage (top, larger font)
-       ctx.font = 'bold 40px Arial';
-       ctx.fillText(entry.cage, x + labelSize/2, y + 60);
+      // Cage (top, larger font)
+      ctx.font = 'bold 40px Arial';
+      ctx.fillText(entry.cage, x + labelSize/2, y + 60);
 
-       // Name (middle, no label)
-       ctx.font = 'bold 32px Arial';
-       const name = entry.name || entry.egg_id;
-       ctx.fillText(name, x + labelSize/2, y + 120);
+      // Name (middle, no label)
+      ctx.font = 'bold 32px Arial';
+      const name = entry.name || entry.egg_id;
+      ctx.fillText(name, x + labelSize/2, y + 120);
 
       // Egg ID (below cage, no label)
       ctx.font = '28px Arial';
@@ -289,272 +280,423 @@ export default function Home() {
     }, 'image/png');
   };
 
-  if (loading) {
-    return (
-      <div className="container">
-        <div className="header">
-          <h1>Egg Label Tracker</h1>
-        </div>
-        <div className="content">
-          <p>Loading...</p>
-        </div>
-      </div>
-    );
-  }
+  // Function to render the exact same layout as the print version
+  const renderPrintLayout = () => {
+    if (entries.length === 0) return null;
 
-  if (error) {
+    // A4 dimensions in cm
+    const pageWidth = 21; // cm
+    const pageHeight = 29.7; // cm
+    
+    // Margins in cm
+    const topMargin = 1.3;
+    const bottomMargin = 1.3;
+    const leftMargin = 2;
+    const rightMargin = 2;
+    
+    // Label dimensions in cm
+    const labelSize = 4; // 4cm x 4cm
+    const verticalGap = 0.5; // 0.5cm
+    const horizontalGap = 0.8; // 0.8cm
+    
+    // Grid dimensions
+    const labelsPerRow = 4;
+    const labelsPerCol = 6;
+    
+    // Calculate available space
+    const availableWidth = pageWidth - leftMargin - rightMargin;
+    const availableHeight = pageHeight - topMargin - bottomMargin;
+    
+    // Calculate grid dimensions
+    const gridWidth = (labelsPerRow * labelSize) + ((labelsPerRow - 1) * horizontalGap);
+    const gridHeight = (labelsPerCol * labelSize) + ((labelsPerCol - 1) * verticalGap);
+    
+    // Calculate starting position to center the grid
+    const startX = leftMargin + (availableWidth - gridWidth) / 2;
+    const startY = topMargin + (availableHeight - gridHeight) / 2;
+
+    // Scale factor for preview (convert cm to pixels for display)
+    const scaleFactor = 20; // 1cm = 20px for preview
+    
+    const previewWidth = pageWidth * scaleFactor;
+    const previewHeight = pageHeight * scaleFactor;
+    
     return (
-      <div className="container">
-        <div className="header">
-          <h1>Egg Label Tracker</h1>
-        </div>
-        <div className="content">
-          <p>Error: {error}</p>
-          <button onClick={fetchData}>Retry</button>
+      <div style={{
+        width: previewWidth,
+        height: previewHeight,
+        margin: '0 auto',
+        border: '2px solid #333',
+        background: 'white',
+        position: 'relative',
+        boxShadow: '0 4px 8px rgba(0,0,0,0.1)'
+      }}>
+        {/* Labels grid */}
+        {Array.from({ length: labelsPerRow * labelsPerCol }, (_, index) => {
+          const entry = previewLayout[index];
+          const row = Math.floor(index / labelsPerRow);
+          const col = index % labelsPerRow;
+          
+          const x = (startX + (col * (labelSize + horizontalGap))) * scaleFactor;
+          const y = (startY + (row * (labelSize + verticalGap))) * scaleFactor;
+          const size = labelSize * scaleFactor;
+          
+          return (
+            <div
+              key={index}
+              style={{
+                position: 'absolute',
+                left: x,
+                top: y,
+                width: size,
+                height: size,
+                border: '2px solid #333',
+                background: 'white',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '4px',
+                boxSizing: 'border-box',
+                cursor: entry ? 'grab' : 'default'
+              }}
+              draggable={!!entry}
+              onDragStart={entry ? () => handleDragStart(entry, index) : undefined}
+              onDragOver={handleDragOver}
+              onDrop={() => handleDrop(index)}
+              onMouseEnter={() => setHoveredId(entry?.id || null)}
+              onMouseLeave={() => setHoveredId(null)}
+            >
+              {entry ? (
+                <>
+                  {/* Cage (top, larger font) */}
+                  <div style={{
+                    fontSize: '12px',
+                    fontWeight: 'bold',
+                    marginBottom: '2px',
+                    textAlign: 'center'
+                  }}>
+                    {entry.cage}
+                  </div>
+                  
+                  {/* Name (middle) */}
+                  <div style={{
+                    fontSize: '10px',
+                    fontWeight: 'bold',
+                    marginBottom: '2px',
+                    textAlign: 'center'
+                  }}>
+                    {entry.name || entry.egg_id}
+                  </div>
+                  
+                  {/* Egg ID */}
+                  <div style={{
+                    fontSize: '8px',
+                    marginBottom: '4px',
+                    textAlign: 'center',
+                    color: '#666'
+                  }}>
+                    {entry.egg_id}
+                  </div>
+                  
+                  {/* QR Code */}
+                  <div style={{
+                    width: '24px',
+                    height: '24px',
+                    border: '1px solid #ccc',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}>
+                    <img 
+                      src={`/api/qr?link=${encodeURIComponent(entry.link)}`}
+                      alt="QR Code"
+                      style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                    />
+                  </div>
+                  
+                  {/* Delete button on hover */}
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: '2px',
+                      right: '2px',
+                      opacity: hoveredId === entry.id ? 1 : 0,
+                      transition: 'opacity 0.2s'
+                    }}
+                  >
+                    <button
+                      onClick={() => handleDelete(entry.id)}
+                      style={{
+                        background: '#dc3545',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '50%',
+                        width: '16px',
+                        height: '16px',
+                        cursor: 'pointer',
+                        fontSize: '10px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        lineHeight: 1
+                      }}
+                      title="Delete this entry"
+                    >
+                      ×
+                    </button>
+                  </div>
+                </>
+              ) : (
+                // Empty label placeholder
+                <div style={{
+                  color: '#ccc',
+                  fontSize: '8px',
+                  textAlign: 'center',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  height: '100%'
+                }}>
+                  Empty
+                </div>
+              )}
+            </div>
+          );
+        })}
+        
+        {/* Page dimensions label */}
+        <div style={{
+          position: 'absolute',
+          bottom: '5px',
+          right: '5px',
+          fontSize: '8px',
+          color: '#999',
+          background: 'white',
+          padding: '2px 4px',
+          border: '1px solid #ddd'
+        }}>
+          {pageWidth}cm × {pageHeight}cm
         </div>
       </div>
     );
+  };
+
+  if (loading) {
+    return <div>Loading...</div>;
   }
 
   return (
-    <div className="container">
-      <div className="header">
-        <h1>Egg Label Tracker</h1>
+    <div style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto' }}>
+      <h1>Egg Label Tracker</h1>
+      
+      {/* Tab Navigation */}
+      <div style={{ marginBottom: '20px', borderBottom: '1px solid #ddd' }}>
+        <button
+          onClick={() => setActiveTab('table')}
+          style={{
+            padding: '10px 20px',
+            marginRight: '10px',
+            background: activeTab === 'table' ? '#007bff' : '#f8f9fa',
+            color: activeTab === 'table' ? 'white' : '#333',
+            border: '1px solid #ddd',
+            borderRadius: '4px',
+            cursor: 'pointer'
+          }}
+        >
+          Table View
+        </button>
+        <button
+          onClick={() => setActiveTab('sheet')}
+          style={{
+            padding: '10px 20px',
+            background: activeTab === 'sheet' ? '#007bff' : '#f8f9fa',
+            color: activeTab === 'sheet' ? 'white' : '#333',
+            border: '1px solid #ddd',
+            borderRadius: '4px',
+            cursor: 'pointer'
+          }}
+        >
+          Label Sheet
+        </button>
       </div>
-      <div className="content">
-        {/* Debug Info */}
-        <div style={{ background: '#f0f0f0', padding: '10px', margin: '10px 0', borderRadius: '4px' }}>
-          <strong>Debug Info:</strong> Loading: {loading.toString()}, Entries: {entries.length}, Active Tab: {activeTab}, Force Update: {forceUpdate}
-          <button 
-            onClick={() => {
-              console.log('Manual refresh clicked');
-              setForceUpdate(prev => prev + 1);
-            }}
-            style={{ marginLeft: '10px', padding: '5px 10px' }}
-          >
-            Force Refresh
-          </button>
-          <button 
-            onClick={() => {
-              console.log('Manual data refresh clicked');
-              fetchData();
-            }}
-            style={{ marginLeft: '10px', padding: '5px 10px', background: '#2563eb', color: 'white', border: 'none' }}
-          >
-            Refresh Data
-          </button>
-        </div>
-        {/* Tab Navigation */}
-        <div className="tab-navigation">
-          <button 
-            className={`tab-btn ${activeTab === 'table' ? 'active' : ''}`}
-            onClick={() => setActiveTab('table')}
-          >
-            Table View
-          </button>
-          <button 
-            className={`tab-btn ${activeTab === 'sheet' ? 'active' : ''}`}
-            onClick={() => setActiveTab('sheet')}
-          >
-            Label Sheet
-          </button>
-        </div>
 
-        {/* Local Development Test Form */}
-        <div className="dev-form">
-          <h3>Add Test Entry (Local Development)</h3>
-          <form onSubmit={async (e) => {
-            e.preventDefault();
-            const formData = new FormData(e.currentTarget);
-            const newEntry: LabelEntry = {
-              id: crypto.randomUUID(),
-              egg_id: formData.get('egg_id') as string,
-              name: formData.get('name') as string,
-              cage: formData.get('cage') as string,
-              link: `https://www.notion.so/${formData.get('egg_id')}`,
-              createdAt: new Date().toISOString(),
-            };
-            
-            // Optimistic update - add to UI immediately
-            setEntries([...entries, newEntry]);
-            (e.target as HTMLFormElement).reset();
-            
-            // Try to add to server (but don't block UI)
-            try {
-              const response = await fetch('/api/add', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                  secret: 'b627941e8e9d36426e67cb7e29114515204c982b4b6002b840be36357bdd35b6', // Use your actual secret
-                  ...newEntry,
-                }),
-              });
-              
-              if (response.ok) {
-                console.log('Entry added to server successfully');
-              } else {
-                console.log('Failed to add entry to server, but kept in local state');
-              }
-            } catch (error) {
-              console.log('Server add failed, but entry kept in local state');
-            }
-          }}>
-            <div className="form-row">
-              <input name="egg_id" placeholder="Egg ID" required />
-              <input name="name" placeholder="Name" required />
-              <input name="cage" placeholder="Cage" required />
-              <button type="submit">Add Entry</button>
+      {/* Add Form */}
+      <div style={{ marginBottom: '30px', padding: '20px', border: '1px solid #ccc', borderRadius: '8px' }}>
+        <h3>Add New Entry</h3>
+        <form ref={formRef} onSubmit={handleAdd}>
+          <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+            <input name="egg_id" placeholder="Egg ID" required style={{ padding: '8px', flex: 1 }} />
+            <input name="name" placeholder="Name" required style={{ padding: '8px', flex: 1 }} />
+            <input name="cage" placeholder="Cage" required style={{ padding: '8px', flex: 1 }} />
+            <button type="submit" style={{ padding: '8px 16px', background: '#007bff', color: 'white', border: 'none', borderRadius: '4px' }}>
+              Add Entry
+            </button>
+          </div>
+        </form>
+      </div>
+
+      {/* Table View */}
+      {activeTab === 'table' && (
+        <div>
+          <h3>Entries ({entries.length})</h3>
+          <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #ddd' }}>
+            <thead>
+              <tr style={{ background: '#f5f5f5' }}>
+                <th style={{ padding: '12px', border: '1px solid #ddd', textAlign: 'left' }}>Egg ID</th>
+                <th style={{ padding: '12px', border: '1px solid #ddd', textAlign: 'left' }}>Name</th>
+                <th style={{ padding: '12px', border: '1px solid #ddd', textAlign: 'left' }}>Cage</th>
+                <th style={{ padding: '12px', border: '1px solid #ddd', textAlign: 'left' }}>Link</th>
+                <th style={{ padding: '12px', border: '1px solid #ddd', textAlign: 'left' }}>QR Preview</th>
+                <th style={{ padding: '12px', border: '1px solid #ddd', textAlign: 'left' }}>Created</th>
+                <th style={{ padding: '12px', border: '1px solid #ddd', textAlign: 'left' }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {entries.length === 0 ? (
+                <tr>
+                  <td colSpan={7} style={{ padding: '40px', textAlign: 'center', color: '#666' }}>
+                    No entries found. Add your first egg label!
+                  </td>
+                </tr>
+              ) : (
+                entries.map((entry) => (
+                  <tr key={entry.id}>
+                    <td style={{ padding: '12px', border: '1px solid #ddd' }}>{entry.egg_id}</td>
+                    <td style={{ padding: '12px', border: '1px solid #ddd' }}>{entry.name}</td>
+                    <td style={{ padding: '12px', border: '1px solid #ddd' }}>{entry.cage}</td>
+                    <td style={{ padding: '12px', border: '1px solid #ddd' }}>
+                      <a href={entry.link} target="_blank" rel="noopener noreferrer" style={{ color: '#007bff' }}>
+                        {entry.link.length > 50 ? `${entry.link.substring(0, 50)}...` : entry.link}
+                      </a>
+                    </td>
+                    <td style={{ padding: '12px', border: '1px solid #ddd' }}>
+                      <img 
+                        src={`/api/qr?link=${encodeURIComponent(entry.link)}`}
+                        alt="QR Code"
+                        style={{ width: '60px', height: '60px', border: '1px solid #ddd' }}
+                      />
+                    </td>
+                    <td style={{ padding: '12px', border: '1px solid #ddd' }}>
+                      {new Date(entry.createdAt).toLocaleDateString()}
+                    </td>
+                    <td style={{ padding: '12px', border: '1px solid #ddd' }}>
+                      <button
+                        onClick={() => handleDelete(entry.id)}
+                        style={{
+                          background: '#dc3545',
+                          color: 'white',
+                          border: 'none',
+                          padding: '6px 12px',
+                          borderRadius: '4px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Label Sheet View */}
+      {activeTab === 'sheet' && (
+        <div>
+          <div style={{ marginBottom: '20px', textAlign: 'center' }}>
+            <button
+              onClick={downloadSheet}
+              style={{
+                padding: '12px 24px',
+                background: '#28a745',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                fontSize: '16px',
+                cursor: 'pointer',
+                marginRight: '10px'
+              }}
+            >
+              🖨️ Download Sheet as PNG
+            </button>
+            <button
+              onClick={() => {
+                const layout = Array(24).fill(null);
+                entries.forEach((entry, index) => {
+                  if (index < 24) {
+                    layout[index] = entry;
+                  }
+                });
+                setPreviewLayout(layout);
+              }}
+              style={{
+                padding: '12px 24px',
+                background: '#6c757d',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                fontSize: '16px',
+                cursor: 'pointer'
+              }}
+            >
+              🔄 Reset Layout
+            </button>
+            <p style={{ marginTop: '10px', color: '#666' }}>
+              A4 (21cm × 29.7cm) - 4cm × 4cm labels, 4×6 grid layout
+            </p>
+          </div>
+
+          {entries.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
+              <p>No entries found. Add some egg labels first!</p>
             </div>
-          </form>
-          
-          {/* Delete All Button */}
-          {entries.length > 0 && (
-            <div style={{ marginTop: '15px', textAlign: 'center' }}>
-              <button 
-                onClick={handleDeleteAll}
-                style={{
-                  background: '#dc2626',
-                  color: 'white',
-                  border: 'none',
-                  padding: '8px 16px',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontSize: '0.875rem'
-                }}
-                title="Delete all entries (requires secret)"
-              >
-                🗑️ Delete All Entries
-              </button>
+          ) : (
+            <div>
+              <h3>Print Layout Preview - {entries.length} Labels</h3>
+              <p style={{ textAlign: 'center', marginBottom: '20px', color: '#666' }}>
+                Drag and drop labels to rearrange the layout. The downloaded PNG will match this preview exactly.
+              </p>
+              
+              {/* Exact print layout preview */}
+              <div style={{ 
+                display: 'flex',
+                justifyContent: 'center',
+                padding: '20px',
+                background: '#f8f9fa',
+                borderRadius: '8px',
+                overflow: 'auto'
+              }}>
+                {renderPrintLayout()}
+              </div>
+              
+              {/* Grid info */}
+              <div style={{ 
+                textAlign: 'center', 
+                marginTop: '20px', 
+                padding: '15px',
+                background: 'white',
+                border: '1px solid #ddd',
+                borderRadius: '6px',
+                maxWidth: '600px',
+                margin: '20px auto 0'
+              }}>
+                <h4 style={{ margin: '0 0 10px 0', color: '#333' }}>Layout Specifications</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '14px' }}>
+                  <div><strong>Page Size:</strong> A4 (21cm × 29.7cm)</div>
+                  <div><strong>Labels per page:</strong> 24 (4×6 grid)</div>
+                  <div><strong>Label size:</strong> 4cm × 4cm</div>
+                  <div><strong>Margins:</strong> 2cm sides, 1.3cm top/bottom</div>
+                  <div><strong>Horizontal gap:</strong> 0.8cm</div>
+                  <div><strong>Vertical gap:</strong> 0.5cm</div>
+                </div>
+              </div>
             </div>
           )}
         </div>
-
-        {/* Table View */}
-        {activeTab === 'table' && (
-          <div className="table-container" key={`table-${forceUpdate}-${entries.length}`}>
-            <table>
-              <thead>
-                <tr>
-                  <th>Egg ID</th>
-                  <th>Name</th>
-                  <th>Cage</th>
-                  <th>Task/Link</th>
-                  <th>QR Preview</th>
-                  <th>Created</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {entries.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} style={{ textAlign: 'center', padding: '40px' }}>
-                      No entries found. Add your first egg label!
-                    </td>
-                  </tr>
-                ) : (
-                  entries.map((entry) => (
-                    <tr key={`${entry.id}-${forceUpdate}`}>
-                      <td>{entry.egg_id}</td>
-                      <td>{entry.name}</td>
-                      <td>{entry.cage}</td>
-                      <td>
-                        <a 
-                          href={entry.link} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          style={{ color: '#2563eb', textDecoration: 'none' }}
-                        >
-                          {entry.link.length > 50 ? `${entry.link.substring(0, 50)}...` : entry.link}
-                        </a>
-                      </td>
-                      <td>
-                        <img 
-                          src={`/api/qr?link=${encodeURIComponent(entry.link)}`}
-                          alt="QR Code"
-                          className="qr-preview"
-                        />
-                      </td>
-                      <td className="timestamp">{formatDate(entry.createdAt)}</td>
-                      <td>
-                        <button
-                          onClick={() => handleDelete(entry.id)}
-                          className="delete-btn"
-                          title="Delete this entry"
-                        >
-                          Delete
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {/* Label Sheet View */}
-        {activeTab === 'sheet' && (
-          <div className="sheet-section">
-            <div className="sheet-controls">
-              <button 
-                onClick={downloadSheet}
-                className="download-btn"
-                disabled={entries.length === 0}
-              >
-                Download Sheet as PNG
-              </button>
-              <p className="sheet-info">A4 (21cm x 29.7cm) - 4cm x 4cm labels, 4x6 grid layout</p>
-            </div>
-            
-            <div className="sheet-preview">
-              <div className="sheet-container">
-                {entries.length === 0 ? (
-                  <div className="no-entries">
-                    <p>No entries found. Add some egg labels first!</p>
-                  </div>
-                ) : (
-                  <div className="labels-grid">
-                    {entries.map((entry, index) => (
-                      <div
-                        key={entry.id}
-                        className="label-item"
-                        onMouseEnter={() => setHoveredId(entry.id)}
-                        onMouseLeave={() => setHoveredId(null)}
-                      >
-                                                 <div className="label-content">
-                           <div className="label-cage">{entry.cage}</div>
-                           <div className="label-name">{entry.name || entry.egg_id}</div>
-                           <div className="egg-id">{entry.egg_id}</div>
-                         </div>
-                        
-                        <div className="qr-placeholder">
-                          <img 
-                            src={`/api/qr?link=${encodeURIComponent(entry.link)}`}
-                            alt="QR Code"
-                            className="qr-box"
-                          />
-                        </div>
-
-                        {hoveredId === entry.id && (
-                          <button
-                            className="delete-btn"
-                            onClick={() => handleDelete(entry.id)}
-                            title="Delete this entry"
-                          >
-                            ×
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
+      )}
     </div>
   );
 }
