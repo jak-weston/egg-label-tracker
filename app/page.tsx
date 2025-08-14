@@ -17,27 +17,39 @@ export default function Home() {
       return;
     }
 
+    const secret = prompt('Enter your secret to delete this entry:');
+    if (!secret) return;
+
     try {
+      // Optimistic update - remove from UI immediately
+      const updatedEntries = entries.filter(entry => entry.id !== entryId);
+      setEntries(updatedEntries);
+      
+      // Try to delete from server
       const response = await fetch('/api/delete', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          secret: prompt('Enter your secret to delete this entry:'),
+          secret,
           entryId,
         }),
       });
 
       if (response.ok) {
-        // Refresh data from server to ensure consistency
-        await fetchData();
         alert('Entry deleted successfully!');
+        // Refresh data to ensure consistency
+        await fetchData();
       } else {
+        // Revert optimistic update if server delete failed
+        setEntries(entries);
         const errorData = await response.json();
         alert(`Error: ${errorData.error}`);
       }
     } catch (error) {
+      // Revert optimistic update if there was an error
+      setEntries(entries);
       alert('Failed to delete entry');
     }
   };
@@ -51,8 +63,12 @@ export default function Home() {
     if (!secret) return;
 
     try {
-      // Delete all entries one by one
-      const deletePromises = entries.map(entry => 
+      // Optimistic update - clear UI immediately
+      const originalEntries = [...entries];
+      setEntries([]);
+      
+      // Try to delete all from server
+      const deletePromises = originalEntries.map(entry => 
         fetch('/api/delete', {
           method: 'POST',
           headers: {
@@ -69,13 +85,17 @@ export default function Home() {
       const allSuccessful = responses.every(response => response.ok);
 
       if (allSuccessful) {
-        // Refresh data from server to ensure consistency
-        await fetchData();
         alert('All entries deleted successfully!');
+        // Refresh data to ensure consistency
+        await fetchData();
       } else {
+        // Revert optimistic update if some deletes failed
+        setEntries(originalEntries);
         alert('Some entries could not be deleted. Please try again.');
       }
     } catch (error) {
+      // Revert optimistic update if there was an error
+      setEntries(entries);
       alert('Failed to delete all entries');
     }
   };
@@ -338,7 +358,7 @@ export default function Home() {
         {/* Local Development Test Form */}
         <div className="dev-form">
           <h3>Add Test Entry (Local Development)</h3>
-          <form onSubmit={(e) => {
+          <form onSubmit={async (e) => {
             e.preventDefault();
             const formData = new FormData(e.currentTarget);
             const newEntry: LabelEntry = {
@@ -349,9 +369,32 @@ export default function Home() {
               link: `https://www.notion.so/${formData.get('egg_id')}`,
               createdAt: new Date().toISOString(),
             };
-            appendEntryToStorage(newEntry);
+            
+            // Optimistic update - add to UI immediately
             setEntries([...entries, newEntry]);
             (e.target as HTMLFormElement).reset();
+            
+            // Try to add to server (but don't block UI)
+            try {
+              const response = await fetch('/api/add', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  secret: 'local-dev', // Use a dummy secret for local development
+                  ...newEntry,
+                }),
+              });
+              
+              if (response.ok) {
+                console.log('Entry added to server successfully');
+              } else {
+                console.log('Failed to add entry to server, but kept in local state');
+              }
+            } catch (error) {
+              console.log('Server add failed, but entry kept in local state');
+            }
           }}>
             <div className="form-row">
               <input name="egg_id" placeholder="Egg ID" required />
@@ -385,7 +428,7 @@ export default function Home() {
 
         {/* Table View */}
         {activeTab === 'table' && (
-          <div className="table-container">
+          <div className="table-container" key={`table-${forceUpdate}-${entries.length}`}>
             <table>
               <thead>
                 <tr>
@@ -407,7 +450,7 @@ export default function Home() {
                   </tr>
                 ) : (
                   entries.map((entry) => (
-                    <tr key={entry.id}>
+                    <tr key={`${entry.id}-${forceUpdate}`}>
                       <td>{entry.egg_id}</td>
                       <td>{entry.name}</td>
                       <td>{entry.cage}</td>
