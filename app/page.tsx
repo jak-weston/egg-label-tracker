@@ -184,7 +184,7 @@ export default function Home() {
     const rightMargin = 2 * 118.11; // 2cm
 
          // Label dimensions in pixels (300 DPI)
-     const labelSize = 4.3 * 118.11; // 4.3cm x 4.3cm
+     const labelSize = 4.4 * 118.11; // 4.4cm x 4.3cm (height increased by 0.1cm for padding)
      const verticalGap = 0.5 * 118.11; // 0.5cm
      const horizontalGap = 0.8 * 118.11; // 0.8cm
 
@@ -223,54 +223,57 @@ export default function Home() {
       ctx.fillStyle = '#000';
       ctx.textAlign = 'center';
       
-      // Cage (top, larger font)
-      ctx.font = 'bold 40px Arial';
-      ctx.fillText(entry.cage, x + labelSize/2, y + 60);
-
-      // Name (middle, no label)
-      ctx.font = 'bold 32px Arial';
-      const name = entry.name || entry.egg_id;
-      ctx.fillText(name, x + labelSize/2, y + 120);
-
-      // Egg ID (below cage, no label)
-      ctx.font = '28px Arial';
-      ctx.fillText(entry.egg_id, x + labelSize/2, y + 160);
-
-      // QR Code (below egg ID, centered)
-      try {
-        // Fetch the QR code image
-        const qrResponse = await fetch(`/api/qr?link=${encodeURIComponent(entry.link)}`);
-        if (qrResponse.ok) {
-          const qrBlob = await qrResponse.blob();
-          const qrImage = await createImageBitmap(qrBlob);
-          
-          // Draw the actual QR code image
-          const qrSize = 250; // Increased size for better visibility
-          const qrX = x + (labelSize - qrSize) / 2;
-          const qrY = y + 180; // Adjusted position to accommodate larger QR
-          ctx.drawImage(qrImage, qrX, qrY, qrSize, qrSize);
-        } else {
-          // Fallback: draw QR placeholder if image fetch fails
-          ctx.strokeStyle = '#000';
-          ctx.lineWidth = 2;
-          const qrSize = 120;
-          const qrX = x + (labelSize - qrSize) / 2;
-          const qrY = y + 180;
-          ctx.strokeRect(qrX, qrY, qrSize, qrSize);
-          ctx.font = '16px Arial';
-          ctx.fillText('QR', x + labelSize/2, qrY + qrSize + 20);
-        }
-      } catch (error) {
-        // Fallback: draw QR placeholder if image fetch fails
-        ctx.strokeStyle = '#000';
-        ctx.lineWidth = 2;
-        const qrSize = 120;
-        const qrX = x + (labelSize - qrSize) / 2;
-        const qrY = y + 180;
-        ctx.strokeRect(qrX, qrY, qrSize, qrSize);
-        ctx.font = '16px Arial';
-        ctx.fillText('QR', x + labelSize/2, qrY + qrSize + 20);
-      }
+             // Add 0.1cm padding (converted to pixels)
+       const padding = 0.1 * 118.11; // 0.1cm in pixels
+       
+       // Cage (top, larger font) - pushed down by padding
+       ctx.font = 'bold 40px Arial';
+       ctx.fillText(entry.cage, x + labelSize/2, y + 60 + padding);
+ 
+       // Name (middle, no label) - pushed down by padding
+       ctx.font = 'bold 32px Arial';
+       const name = entry.name || entry.egg_id;
+       ctx.fillText(name, x + labelSize/2, y + 120 + padding);
+ 
+       // Egg ID (below cage, no label) - pushed down by padding
+       ctx.font = '28px Arial';
+       ctx.fillText(entry.egg_id, x + labelSize/2, y + 160 + padding);
+ 
+       // QR Code (below egg ID, centered) - pushed down by padding
+       try {
+         // Fetch the QR code image
+         const qrResponse = await fetch(`/api/qr?link=${encodeURIComponent(entry.link)}`);
+         if (qrResponse.ok) {
+           const qrBlob = await qrResponse.blob();
+           const qrImage = await createImageBitmap(qrBlob);
+           
+           // Draw the actual QR code image
+           const qrSize = 250; // Increased size for better visibility
+           const qrX = x + (labelSize - qrSize) / 2;
+           const qrY = y + 180 + padding; // Adjusted position to accommodate larger QR and padding
+           ctx.drawImage(qrImage, qrX, qrY, qrSize, qrSize);
+         } else {
+           // Fallback: draw QR placeholder if image fetch fails
+           ctx.strokeStyle = '#000';
+           ctx.lineWidth = 2;
+           const qrSize = 120;
+           const qrX = x + (labelSize - qrSize) / 2;
+           const qrY = y + 180 + padding;
+           ctx.strokeRect(qrX, qrY, qrSize, qrSize);
+           ctx.font = '16px Arial';
+           ctx.fillText('QR', x + labelSize/2, qrY + qrSize + 20);
+         }
+       } catch (error) {
+         // Fallback: draw QR placeholder if image fetch fails
+         ctx.strokeStyle = '#000';
+         ctx.lineWidth = 2;
+         const qrSize = 120;
+         const qrX = x + (labelSize - qrSize) / 2;
+         const qrY = y + 180 + padding;
+         ctx.strokeRect(qrX, qrY, qrSize, qrSize);
+         ctx.font = '16px Arial';
+         ctx.fillText('QR', x + labelSize/2, qrY + qrSize + 20);
+       }
     }
 
     // Convert to blob and download
@@ -303,7 +306,7 @@ export default function Home() {
     const rightMargin = 2;
     
          // Label dimensions in cm
-     const labelSize = 4.3; // 4.3cm x 4.3cm
+     const labelSize = 4.4; // 4.4cm x 4.3cm (height increased by 0.1cm for padding)
      const verticalGap = 0.5; // 0.5cm
      const horizontalGap = 0.8; // 0.8cm
     
@@ -680,7 +683,7 @@ export default function Home() {
                🔄 Reset Layout
              </button>
                             <p style={{ marginTop: '10px', color: '#666' }}>
-                 A4 (21cm × 29.7cm) - 4.3cm × 4.3cm labels, 4×6 grid layout
+                 A4 (21cm × 29.7cm) - 4.3cm × 4.4cm labels, 4×6 grid layout (with 0.1cm internal padding)
                </p>
              
              {/* Page Navigation for Multiple Pages */}
@@ -762,10 +765,11 @@ export default function Home() {
                                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '14px' }}>
                    <div><strong>Page Size:</strong> A4 (21cm × 29.7cm)</div>
                    <div><strong>Labels per page:</strong> 24 (4×6 grid)</div>
-                   <div><strong>Label size:</strong> 4.3cm × 4.3cm</div>
+                   <div><strong>Label size:</strong> 4.3cm × 4.4cm</div>
                    <div><strong>Margins:</strong> 2cm sides, 1.3cm top/bottom</div>
                    <div><strong>Horizontal gap:</strong> 0.8cm</div>
                    <div><strong>Vertical gap:</strong> 0.5cm</div>
+                   <div><strong>Internal padding:</strong> 0.1cm</div>
                  </div>
               </div>
             </div>
