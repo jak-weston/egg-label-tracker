@@ -88,7 +88,7 @@ function extractNotionData(webhookBody: any) {
       return null;
     }
     
-    const [egg_id, name, cage] = parts.map(part => part.trim());
+    const [egg_id, name, cage] = parts.map((part: string) => part.trim());
     
     // Generate a link (you can customize this)
     const link = `https://www.notion.so/${webhookBody?.pageId || 'page'}`;
