@@ -183,10 +183,10 @@ export default function Home() {
     const leftMargin = 2 * 118.11; // 2cm
     const rightMargin = 2 * 118.11; // 2cm
 
-    // Label dimensions in pixels (300 DPI)
-    const labelSize = 4 * 118.11; // 4cm x 4cm
-    const verticalGap = 0.5 * 118.11; // 0.5cm
-    const horizontalGap = 0.8 * 118.11; // 0.8cm
+         // Label dimensions in pixels (300 DPI)
+     const labelSize = 4.3 * 118.11; // 4.3cm x 4.3cm
+     const verticalGap = 0.5 * 118.11; // 0.5cm
+     const horizontalGap = 0.8 * 118.11; // 0.8cm
 
     // Calculate available space for grid
     const availableWidth = canvas.width - leftMargin - rightMargin;
@@ -302,10 +302,10 @@ export default function Home() {
     const leftMargin = 2;
     const rightMargin = 2;
     
-    // Label dimensions in cm
-    const labelSize = 4; // 4cm x 4cm
-    const verticalGap = 0.5; // 0.5cm
-    const horizontalGap = 0.8; // 0.8cm
+         // Label dimensions in cm
+     const labelSize = 4.3; // 4.3cm x 4.3cm
+     const verticalGap = 0.5; // 0.5cm
+     const horizontalGap = 0.8; // 0.8cm
     
     // Grid dimensions
     const labelsPerRow = 4;
@@ -679,9 +679,9 @@ export default function Home() {
              >
                🔄 Reset Layout
              </button>
-             <p style={{ marginTop: '10px', color: '#666' }}>
-               A4 (21cm × 29.7cm) - 4cm × 4cm labels, 4×6 grid layout
-             </p>
+                            <p style={{ marginTop: '10px', color: '#666' }}>
+                 A4 (21cm × 29.7cm) - 4.3cm × 4.3cm labels, 4×6 grid layout
+               </p>
              
              {/* Page Navigation for Multiple Pages */}
              {entries.filter(entry => !entry.isReset).length > 24 && (
@@ -759,14 +759,14 @@ export default function Home() {
                 margin: '20px auto 0'
               }}>
                 <h4 style={{ margin: '0 0 10px 0', color: '#333' }}>Layout Specifications</h4>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '14px' }}>
-                  <div><strong>Page Size:</strong> A4 (21cm × 29.7cm)</div>
-                  <div><strong>Labels per page:</strong> 24 (4×6 grid)</div>
-                  <div><strong>Label size:</strong> 4cm × 4cm</div>
-                  <div><strong>Margins:</strong> 2cm sides, 1.3cm top/bottom</div>
-                  <div><strong>Horizontal gap:</strong> 0.8cm</div>
-                  <div><strong>Vertical gap:</strong> 0.5cm</div>
-                </div>
+                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '14px' }}>
+                   <div><strong>Page Size:</strong> A4 (21cm × 29.7cm)</div>
+                   <div><strong>Labels per page:</strong> 24 (4×6 grid)</div>
+                   <div><strong>Label size:</strong> 4.3cm × 4.3cm</div>
+                   <div><strong>Margins:</strong> 2cm sides, 1.3cm top/bottom</div>
+                   <div><strong>Horizontal gap:</strong> 0.8cm</div>
+                   <div><strong>Vertical gap:</strong> 0.5cm</div>
+                 </div>
               </div>
             </div>
           )}
