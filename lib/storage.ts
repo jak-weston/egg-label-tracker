@@ -174,7 +174,8 @@ export async function writeEntries(entries: LabelEntry[]): Promise<void> {
         return;
       } catch (blobError) {
         console.error('Vercel Blob write error:', blobError);
-        throw new Error(`Failed to write to Vercel Blob: ${blobError.message}`);
+        const errorMessage = blobError instanceof Error ? blobError.message : String(blobError);
+        throw new Error(`Failed to write to Vercel Blob: ${errorMessage}`);
       }
     }
 
