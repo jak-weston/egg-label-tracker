@@ -20,9 +20,12 @@ export default function Home() {
     const secret = prompt('Enter your secret to delete this entry:');
     if (!secret) return;
 
+    // Capture current state before optimistic update
+    const currentEntries = [...entries];
+    
     try {
       // Optimistic update - remove from UI immediately
-      const updatedEntries = entries.filter(entry => entry.id !== entryId);
+      const updatedEntries = currentEntries.filter(entry => entry.id !== entryId);
       setEntries(updatedEntries);
       
       // Try to delete from server
@@ -43,13 +46,13 @@ export default function Home() {
         await fetchData();
       } else {
         // Revert optimistic update if server delete failed
-        setEntries(entries);
+        setEntries(currentEntries);
         const errorData = await response.json();
         alert(`Error: ${errorData.error}`);
       }
     } catch (error) {
       // Revert optimistic update if there was an error
-      setEntries(entries);
+      setEntries(currentEntries);
       alert('Failed to delete entry');
     }
   };
@@ -62,9 +65,11 @@ export default function Home() {
     const secret = prompt('Enter your secret to delete all entries:');
     if (!secret) return;
 
+    // Capture current state before optimistic update
+    const originalEntries = [...entries];
+    
     try {
       // Optimistic update - clear UI immediately
-      const originalEntries = [...entries];
       setEntries([]);
       
       // Try to delete all from server
@@ -95,7 +100,7 @@ export default function Home() {
       }
     } catch (error) {
       // Revert optimistic update if there was an error
-      setEntries(entries);
+      setEntries(originalEntries);
       alert('Failed to delete all entries');
     }
   };
@@ -382,7 +387,7 @@ export default function Home() {
                   'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                  secret: 'local-dev', // Use a dummy secret for local development
+                  secret: 'b627941e8e9d36426e67cb7e29114515204c982b4b6002b840be36357bdd35b6', // Use your actual secret
                   ...newEntry,
                 }),
               });
