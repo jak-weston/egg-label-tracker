@@ -70,8 +70,58 @@ function extractNotionData(webhookBody: any) {
   try {
     console.log('Processing webhook body:', webhookBody);
     
-    // Expect a simple format from your Notion formula
-    // The formula should output something like: "EggID|Name|Cage"
+    // Check if this is a Notion automation webhook
+    if (webhookBody?.data?.properties) {
+      console.log('Notion automation webhook detected');
+      
+      // Look for the formula field in properties
+      const properties = webhookBody.data.properties;
+      let formulaContent = '';
+      
+      // Find the formula field (it might have a different name)
+      for (const [key, value] of Object.entries(properties)) {
+        if (value && typeof value === 'object' && 'type' in value && value.type === 'formula') {
+          const formulaValue = value as any; // Type assertion for Notion's structure
+          if (formulaValue.formula?.type === 'string' && formulaValue.formula?.string) {
+            formulaContent = formulaValue.formula.string;
+            console.log('Found formula content:', formulaContent);
+            break;
+          }
+        }
+      }
+      
+      if (!formulaContent) {
+        console.log('No formula content found in properties');
+        return null;
+      }
+      
+      // Parse the formula content (format: "EggID|Name|Cage")
+      const parts = formulaContent.split('|');
+      
+      if (parts.length < 3) {
+        console.log('Formula content format incorrect. Expected 3 parts, got:', parts.length);
+        console.log('Content:', formulaContent);
+        return null;
+      }
+      
+      const [egg_id, name, cage] = parts.map((part: string) => part.trim());
+      
+      // Generate a link to the Notion page
+      const pageId = webhookBody.data.id;
+      const link = `https://www.notion.so/${pageId.replace(/-/g, '')}`;
+      
+      // Validate required fields
+      if (!egg_id || !name || !cage) {
+        console.log('Missing required fields after parsing:', { egg_id, name, cage });
+        return null;
+      }
+      
+      console.log('Successfully extracted data:', { egg_id, name, cage, link });
+      
+      return { egg_id, name, cage, link };
+    }
+    
+    // Fallback: try the old format
     const formulaContent = webhookBody?.formulaContent || webhookBody?.content || webhookBody?.text || '';
     
     if (!formulaContent) {
